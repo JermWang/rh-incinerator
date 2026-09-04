@@ -10,12 +10,13 @@
     "build": "pnpm -r --filter './packages/**' build && pnpm --filter @incinerator/web build",
     "start": "pnpm --filter @incinerator/web start",
     "typecheck": "pnpm -r typecheck",
-    "test": "pnpm -r --filter './packages/**' test",
+    "test": "pnpm --filter @incinerator/chain --filter @incinerator/sponsor test",
     "test:contracts": "pnpm --filter @incinerator/contracts test",
     "lint": "pnpm -r lint",
     "admin": "pnpm --filter @incinerator/sponsor admin",
     "reconcile": "pnpm --filter @incinerator/sponsor reconcile",
-    "test:e2e": "pnpm --filter @incinerator/web test:e2e"
+    "test:e2e": "pnpm --filter @incinerator/web test:e2e",
+    "test:all": "pnpm test && pnpm test:contracts && pnpm test:e2e"
   },
   "devDependencies": {
     "typescript": "5.9.3"
