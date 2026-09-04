@@ -313,12 +313,15 @@ export function makeEnv(overrides: Partial<SponsorEnv> = {}): SponsorEnv {
     network: "testnet",
     alchemyApiKey: undefined,
     alchemyGasPolicyId: undefined,
+    blockscoutApiKey: undefined,
     backend: "self",
     signerPrivateKey: SIGNER_KEY,
     serverSigningSecret: "test-secret",
     adminToken: "admin",
+    cronSecret: undefined,
     databaseUrl: undefined,
     isProduction: false,
+    simulateChunk: 10,
     ...overrides,
   };
 }

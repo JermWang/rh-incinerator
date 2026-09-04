@@ -1,5 +1,5 @@
 import { keccak256, toHex, type Hex } from "viem";
-import { explorerAddressUrl, explorerTxUrl } from "@incinerator/chain";
+import { explorerAddressUrl, explorerTxUrl, getBlockscout } from "@incinerator/chain";
 import { getServerContext, json } from "@/lib/server";
 
 export const runtime = "nodejs";
@@ -19,7 +19,7 @@ export async function GET(): Promise<Response> {
   let refills: { txHash: string; amountWei: string; hotBalanceAfter: string; blockNumber: number; timestamp: number; url: string }[] = [];
   if (d.sponsorReserve) {
     try {
-      const logs = await ctx.blockscout.logs({ topic0: REFILLED_TOPIC, fromBlock: d.deployedAtBlock ?? 0 });
+      const logs = await getBlockscout(ctx.chainId, ctx.env.blockscoutApiKey).logsPaged({ topic0: REFILLED_TOPIC, fromBlock: d.deployedAtBlock ?? 0 });
       refills = logs
         .filter((l) => l.address.toLowerCase() === d.sponsorReserve!.toLowerCase())
         .map((l) => ({

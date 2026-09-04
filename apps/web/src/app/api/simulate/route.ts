@@ -24,7 +24,7 @@ const BASE_TX_GAS = 21_000n;
  * (c) whether the creator-fee sponsor would cover the batch. Never accepts raw calldata.
  */
 export async function POST(req: Request): Promise<Response> {
-  if (!rateLimit(`sim:${clientIp(req)}`, 40)) return json({ error: "rate limited" }, { status: 429 });
+  if (!(await rateLimit(`sim:${clientIp(req)}`, 40))) return json({ error: "rate limited" }, { status: 429 });
   const parsed = bodySchema.safeParse(await req.json().catch(() => null));
   if (!parsed.success) return json({ error: "invalid request", issues: parsed.error.issues.slice(0, 3) }, { status: 400 });
 
@@ -37,7 +37,7 @@ export async function POST(req: Request): Promise<Response> {
 
   const policy = await ctx.policy();
   const [simulations, gasPrice, status] = await Promise.all([
-    simulateOperations(ctx.client, operations, { maxGasPerCall: policy.MAX_GAS_PER_CALL }).catch((e: unknown) => {
+    simulateOperations(ctx.client, operations, { maxGasPerCall: policy.MAX_GAS_PER_CALL, chunkSize: ctx.env.simulateChunk }).catch((e: unknown) => {
       ctx.log("simulate error", { error: e instanceof Error ? e.message : String(e) });
       return null;
     }),

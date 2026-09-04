@@ -6,7 +6,7 @@ export const runtime = "nodejs";
 
 /** GET /api/transaction/:hash — transaction or UserOperation status with cost reconciliation. */
 export async function GET(req: Request, { params }: { params: Promise<{ hash: string }> }): Promise<Response> {
-  if (!rateLimit(`tx:${clientIp(req)}`, 120)) return json({ error: "rate limited" }, { status: 429 });
+  if (!(await rateLimit(`tx:${clientIp(req)}`, 120))) return json({ error: "rate limited" }, { status: 429 });
   const { hash } = await params;
   if (!isHash(hash)) return json({ error: "invalid hash" }, { status: 400 });
   const ctx = getServerContext();

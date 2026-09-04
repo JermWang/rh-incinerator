@@ -142,11 +142,17 @@ export function useCleanup() {
             if (aborted.current) throw new Error("cancelled");
             const c = calls[i]!;
             patch({ stage: "awaiting-signature", progress: { done: i, total: calls.length } });
-            const hash = await sendTransaction(config, { account: owner, chainId: ACTIVE_CHAIN_ID, to: c.to, data: c.data, value: 0n });
-            hashes.push(hash);
-            patch({ stage: "submitted", txHashes: [...hashes] });
-            const receipt = await waitForTransactionReceipt(config, { hash, timeout: 180_000 });
-            if (receipt.status !== "success") throw new Error(`Transaction ${i + 1} reverted`);
+            try {
+              const hash = await sendTransaction(config, { account: owner, chainId: ACTIVE_CHAIN_ID, to: c.to, data: c.data, value: 0n });
+              hashes.push(hash);
+              patch({ stage: "submitted", txHashes: [...hashes] });
+              const receipt = await waitForTransactionReceipt(config, { hash, timeout: 180_000 });
+              if (receipt.status !== "success") throw new Error(`Transaction ${i + 1} reverted on-chain`);
+            } catch (e) {
+              const raw = e instanceof Error ? e.message : String(e);
+              if (/user rejected|denied|rejected the request/i.test(raw)) throw e;
+              throw new Error(raw.startsWith(`Transaction ${i + 1}`) ? raw : `Transaction ${i + 1} reverted: ${raw.split("\n")[0]}`);
+            }
             patch({ progress: { done: i + 1, total: calls.length } });
           }
           effectiveMode = "sequential";

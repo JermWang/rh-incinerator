@@ -46,14 +46,19 @@ export function classifyAsset(input: ClassifyInput): ClassificationResult {
   const registry = lookupProtected(input.chainId, input.address);
   if (registry) return protectedResult([registry.reason]);
 
+  // Impersonation check runs before any symbol-based protection: a widely held
+  // contract reusing a canonical symbol must never inherit that symbol's trust.
+  const canonical = canonicalAddressForSymbol(input.chainId, sym);
+  const impersonates = canonical !== undefined && canonical.toLowerCase() !== input.address.toLowerCase();
+
   const trusted = input.verified || (input.holdersCount ?? 0) >= WIDELY_HELD;
-  if (input.standard === "ERC20" && trusted && STABLECOIN_SYMBOLS.has(sym)) {
+  if (!impersonates && input.standard === "ERC20" && trusted && STABLECOIN_SYMBOLS.has(sym)) {
     return protectedResult([`Stablecoin (${sym})`]);
   }
-  if (input.standard === "ERC20" && trusted && WRAPPED_SYMBOLS.has(sym)) {
+  if (!impersonates && input.standard === "ERC20" && trusted && WRAPPED_SYMBOLS.has(sym)) {
     return protectedResult([`Wrapped asset (${sym})`]);
   }
-  if (input.valueUsd !== null && input.valueUsd >= 25) {
+  if (!impersonates && input.valueUsd !== null && input.valueUsd >= 25) {
     return protectedResult([`Meaningful market value (${usd(input.valueUsd)})`]);
   }
   for (const p of POSITION_PATTERNS) {
@@ -70,10 +75,7 @@ export function classifyAsset(input: ClassifyInput): ClassificationResult {
       break;
     }
   }
-  const canonical = canonicalAddressForSymbol(input.chainId, sym);
-  if (canonical && canonical.toLowerCase() !== input.address.toLowerCase()) {
-    reasons.push(`Uses the ${sym} symbol but is not the canonical ${sym} contract`);
-  }
+  if (impersonates) reasons.push(`Uses the ${sym} symbol but is not the canonical ${sym} contract`);
   if (reasons.length > 0) return { classification: "SUSPICIOUS", reasons, protectedAsset: false };
 
   if (input.reputation && input.reputation !== "ok") {

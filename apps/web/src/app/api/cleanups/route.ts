@@ -21,7 +21,7 @@ const recordSchema = z.object({
  * GET  /api/cleanups?wallet=0x… — list a wallet's cleanups.
  */
 export async function POST(req: Request): Promise<Response> {
-  if (!rateLimit(`cleanups:${clientIp(req)}`, 30)) return json({ error: "rate limited" }, { status: 429 });
+  if (!(await rateLimit(`cleanups:${clientIp(req)}`, 30))) return json({ error: "rate limited" }, { status: 429 });
   const ctx = getServerContext();
   const session = ctx.session(bearer(req));
   const parsed = recordSchema.safeParse(await req.json().catch(() => null));

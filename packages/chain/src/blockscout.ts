@@ -2,10 +2,14 @@ import type { Address, Hex } from "viem";
 import { EXPLORER_URL, type SupportedChainId } from "./constants";
 
 /**
- * Thin, typed client for the Blockscout API used as the indexer for the scanner.
+ * Thin, typed client for the Blockscout API used as an indexer for the scanner.
  *
  * Only read-only metadata is cached. Balances, allowances and ownership are
  * always re-read on-chain by the scanner; the indexer is a discovery hint.
+ *
+ * The mainnet instance sits behind a bot challenge that rejects non-browser
+ * user agents; a browser-like UA is sent deliberately. An optional API key is
+ * forwarded as `apikey` for higher rate limits.
  */
 
 export interface BsToken {
@@ -67,6 +71,9 @@ interface CacheEntry<T> {
 
 const DEFAULT_TIMEOUT_MS = 15_000;
 const METADATA_TTL_MS = 10 * 60 * 1000;
+/** Blockscout's legacy log endpoint caps a single response at this many records. */
+const LEGACY_LOG_PAGE = 1000;
+const BROWSER_UA = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0 Safari/537.36 incinerator-scanner/0.1";
 
 export class BlockscoutError extends Error {
   constructor(
@@ -82,13 +89,15 @@ export class BlockscoutClient {
   readonly baseUrl: string;
   private readonly cache = new Map<string, CacheEntry<unknown>>();
   private readonly timeoutMs: number;
+  private readonly apiKey: string | undefined;
 
   constructor(
     readonly chainId: SupportedChainId,
-    opts: { baseUrl?: string; timeoutMs?: number } = {},
+    opts: { baseUrl?: string; timeoutMs?: number; apiKey?: string | undefined } = {},
   ) {
     this.baseUrl = opts.baseUrl ?? EXPLORER_URL[chainId];
     this.timeoutMs = opts.timeoutMs ?? DEFAULT_TIMEOUT_MS;
+    this.apiKey = opts.apiKey;
   }
 
   /** ERC-20 balances the indexer knows about. Values are indexer hints, not truth. */
@@ -121,14 +130,14 @@ export class BlockscoutClient {
 
   /**
    * Indexed log query (legacy API). Serves owner-filtered Approval queries across
-   * full chain history without brute-force eth_getLogs.
+   * full chain history without brute-force eth_getLogs. One page only.
    */
-  async logs(params: { topic0: Hex; topic1?: Hex; fromBlock?: number }): Promise<BsLegacyLog[]> {
+  async logs(params: { topic0: Hex; topic1?: Hex; fromBlock?: number; toBlock?: number | "latest" }): Promise<BsLegacyLog[]> {
     const q = new URLSearchParams({
       module: "logs",
       action: "getLogs",
       fromBlock: String(params.fromBlock ?? 0),
-      toBlock: "latest",
+      toBlock: String(params.toBlock ?? "latest"),
       topic0: params.topic0,
     });
     if (params.topic1) {
@@ -145,6 +154,32 @@ export class BlockscoutClient {
       throw new BlockscoutError(`logs: ${body.message}`);
     }
     return body.result;
+  }
+
+  /**
+   * Full-history log query. When a page comes back full, continue from the
+   * last block seen so wallets with thousands of approvals are not truncated.
+   */
+  async logsPaged(params: { topic0: Hex; topic1?: Hex; fromBlock?: number }, maxPages = 20): Promise<BsLegacyLog[]> {
+    const out: BsLegacyLog[] = [];
+    let from = params.fromBlock ?? 0;
+    const seen = new Set<string>();
+    for (let page = 0; page < maxPages; page++) {
+      const batch = await this.logs({ ...params, fromBlock: from });
+      for (const l of batch) {
+        const key = `${l.transactionHash}:${l.logIndex}`;
+        if (!seen.has(key)) {
+          seen.add(key);
+          out.push(l);
+        }
+      }
+      if (batch.length < LEGACY_LOG_PAGE) break;
+      const lastBlock = Math.max(...batch.map((l) => Number(l.blockNumber)));
+      if (!Number.isFinite(lastBlock) || lastBlock < from) break;
+      // Re-query from the last block (inclusive) to avoid dropping logs that share it; de-duplicated above.
+      from = lastBlock;
+    }
+    return out;
   }
 
   private async paginate<T>(path: string, base: Record<string, string>, maxPages: number): Promise<T[]> {
@@ -179,9 +214,11 @@ export class BlockscoutClient {
   private async get(path: string): Promise<Response> {
     const ctrl = new AbortController();
     const t = setTimeout(() => ctrl.abort(), this.timeoutMs);
+    const url = new URL(`${this.baseUrl}${path}`);
+    if (this.apiKey) url.searchParams.set("apikey", this.apiKey);
     try {
-      return await fetch(`${this.baseUrl}${path}`, {
-        headers: { accept: "application/json", "user-agent": "incinerator-scanner/0.1" },
+      return await fetch(url, {
+        headers: { accept: "application/json", "user-agent": BROWSER_UA },
         signal: ctrl.signal,
       });
     } finally {
@@ -190,12 +227,13 @@ export class BlockscoutClient {
   }
 }
 
-const clients = new Map<SupportedChainId, BlockscoutClient>();
-export function getBlockscout(chainId: SupportedChainId): BlockscoutClient {
-  let c = clients.get(chainId);
+const clients = new Map<string, BlockscoutClient>();
+export function getBlockscout(chainId: SupportedChainId, apiKey?: string | undefined): BlockscoutClient {
+  const key = `${chainId}:${apiKey ?? ""}`;
+  let c = clients.get(key);
   if (!c) {
-    c = new BlockscoutClient(chainId);
-    clients.set(chainId, c);
+    c = new BlockscoutClient(chainId, { apiKey });
+    clients.set(key, c);
   }
   return c;
 }

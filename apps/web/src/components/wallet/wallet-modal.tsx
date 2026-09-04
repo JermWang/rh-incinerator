@@ -2,6 +2,7 @@
 
 import * as Dialog from "@radix-ui/react-dialog";
 import { X } from "lucide-react";
+import { useEffect, useState } from "react";
 import { useConnect, useConnectors } from "wagmi";
 import { Button } from "@/components/ui/button";
 
@@ -19,7 +20,14 @@ export function WalletModal({ open, onOpenChange }: Props) {
   const { mutate: connect, isPending, variables, error, reset } = useConnect({
     mutation: { onSuccess: () => onOpenChange(false) },
   });
-  const visible = connectors.filter((c, i, arr) => c.id !== "injected" || arr.filter((x) => x.type === "injected").length === 1);
+  // The generic "injected" connector is only meaningful when a provider is
+  // actually present and no EIP-6963 wallet announced itself.
+  const [hasInjected, setHasInjected] = useState(false);
+  useEffect(() => {
+    setHasInjected(typeof window !== "undefined" && Boolean((window as { ethereum?: unknown }).ethereum));
+  }, []);
+  const discovered = connectors.filter((c) => c.id !== "injected");
+  const visible = discovered.length > 0 || !hasInjected ? discovered : connectors.filter((c) => c.id === "injected");
 
   return (
     <Dialog.Root

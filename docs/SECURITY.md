@@ -34,5 +34,5 @@ If the sponsor signer, app server or relayer is fully compromised, an attacker c
 ## Known limitations
 
 - `debug_traceCall` is unavailable on the public RPC; simulation relies on `eth_simulateV1` logs and state reads, not full call traces. Alchemy's Debug API can be added server-side when credentials exist.
-- The mainnet Blockscout instance is behind a bot challenge for non-browser clients; mainnet scanning may require Alchemy Data APIs. The `BlockscoutClient` interface is the seam for that.
-- Which wallets expose `paymasterService` on Robinhood Chain is wallet-vendor dependent. Detection is automatic and the fallback is always a real, user-paid transaction.
+- The mainnet Blockscout instance rejects non-browser user agents; the client sends a browser UA and an Alchemy-backed indexer is used when a key is present. Stock Token protection is resolved on-chain either way.
+- Which wallets expose `paymasterService` on Robinhood Chain is wallet-vendor dependent (see docs/WALLETS.md: MetaMask does not list Robinhood Chain for batching). Detection is automatic and the fallback is always a real, user-paid transaction.

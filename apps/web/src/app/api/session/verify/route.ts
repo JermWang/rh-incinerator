@@ -12,7 +12,7 @@ const bodySchema = z.object({
 
 /** POST /api/session/verify { message, signature } → { token, address, exp } */
 export async function POST(req: Request): Promise<Response> {
-  if (!rateLimit(`verify:${clientIp(req)}`, 20)) return json({ error: "rate limited" }, { status: 429 });
+  if (!(await rateLimit(`verify:${clientIp(req)}`, 20))) return json({ error: "rate limited" }, { status: 429 });
   const parsed = bodySchema.safeParse(await req.json().catch(() => null));
   if (!parsed.success) return json({ error: "invalid request" }, { status: 400 });
   const ctx = getServerContext();

@@ -132,6 +132,12 @@ export interface SponsorStore {
   putNonce(nonce: string, expiresAt: number): Promise<void>;
   consumeNonce(nonce: string, now: number): Promise<boolean>;
 
+  // rate limiting (shared across instances when backed by Postgres)
+  consumeRateLimit(key: string, limit: number, windowMs: number, now: number): Promise<boolean>;
+
+  // reconciliation
+  listUnsettledSponsoredOperations(limit: number): Promise<SponsoredOperation[]>;
+
   metrics(now: number): Promise<Metrics>;
 }
 

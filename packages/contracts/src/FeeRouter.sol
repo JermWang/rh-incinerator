@@ -6,6 +6,12 @@ import {Pausable} from "@openzeppelin/contracts/utils/Pausable.sol";
 import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 import {Address} from "@openzeppelin/contracts/utils/Address.sol";
 
+/// @dev Pons V2 fee escrow surface: recipients claim their own ETH balance.
+interface IPonsFeeEscrow {
+    function claim() external returns (uint256 amount);
+    function balanceOf(address recipient) external view returns (uint256);
+}
+
 /// @title FeeRouter
 /// @notice Splits incoming native ETH (creator fees) between the cold creator
 ///         treasury and the SponsorReserve according to configurable basis points.
@@ -13,6 +19,10 @@ import {Address} from "@openzeppelin/contracts/utils/Address.sol";
 ///      custody, no multicall. Recipients are immutable. `receive()` never
 ///      reverts so an upstream fee escrow can always pay out; distribution is a
 ///      separate, pausable, reentrancy-guarded step.
+///
+///      Option A (direct routing): set this contract as the Pons creator fee
+///      recipient. Pons V2 credits a claim-based escrow, so `claimFees()` pulls
+///      the router's own balance from the immutable escrow into `receive()`.
 contract FeeRouter is Ownable2Step, Pausable, ReentrancyGuard {
     using Address for address payable;
 
@@ -23,11 +33,14 @@ contract FeeRouter is Ownable2Step, Pausable, ReentrancyGuard {
 
     address payable public immutable treasury;
     address payable public immutable sponsorReserve;
+    /// @notice Optional Pons fee escrow. address(0) disables claiming.
+    IPonsFeeEscrow public immutable feeEscrow;
 
     uint16 public treasuryBps;
     uint16 public sponsorBps;
 
     event FeesReceived(address indexed sender, uint256 amount);
+    event FeesClaimed(uint256 amount);
     event TreasuryFunded(uint256 amount);
     event SponsorFunded(uint256 amount);
     event AllocationChanged(uint16 treasuryBps, uint16 sponsorBps);
@@ -36,15 +49,31 @@ contract FeeRouter is Ownable2Step, Pausable, ReentrancyGuard {
     error ZeroAddress();
     error SponsorShareTooHigh(uint16 requested, uint16 max);
     error NothingToDistribute();
+    error NothingToClaim();
+    error EscrowNotConfigured();
     error UnsupportedCall();
 
-    constructor(address initialOwner, address payable treasury_, address payable sponsorReserve_, uint16 sponsorBps_)
-        Ownable(initialOwner)
-    {
+    constructor(
+        address initialOwner,
+        address payable treasury_,
+        address payable sponsorReserve_,
+        uint16 sponsorBps_,
+        IPonsFeeEscrow feeEscrow_
+    ) Ownable(initialOwner) {
         if (treasury_ == address(0) || sponsorReserve_ == address(0)) revert ZeroAddress();
         treasury = treasury_;
         sponsorReserve = sponsorReserve_;
+        feeEscrow = feeEscrow_;
         _setAllocation(sponsorBps_);
+    }
+
+    /// @notice Pull this router's accrued creator fees from the Pons escrow.
+    ///         Permissionless: the only possible destination is this contract.
+    function claimFees() external nonReentrant whenNotPaused returns (uint256 amount) {
+        if (address(feeEscrow) == address(0)) revert EscrowNotConfigured();
+        if (feeEscrow.balanceOf(address(this)) == 0) revert NothingToClaim();
+        amount = feeEscrow.claim();
+        emit FeesClaimed(amount);
     }
 
     /// @notice Accept creator fees. Never reverts.

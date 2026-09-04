@@ -13,7 +13,7 @@ export const maxDuration = 30;
  * cannot forward context. Every request is treated as hostile input.
  */
 export async function POST(req: Request): Promise<Response> {
-  if (!rateLimit(`pm:${clientIp(req)}`, 60)) {
+  if (!(await rateLimit(`pm:${clientIp(req)}`, 60))) {
     return json({ jsonrpc: "2.0", id: null, error: { code: -32005, message: "rate limited" } }, { status: 429 });
   }
   let body: JsonRpcRequest | JsonRpcRequest[];

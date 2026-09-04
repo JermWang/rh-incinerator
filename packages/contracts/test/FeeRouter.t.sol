@@ -2,7 +2,7 @@
 pragma solidity 0.8.28;
 
 import {Test} from "forge-std/Test.sol";
-import {FeeRouter} from "../src/FeeRouter.sol";
+import {FeeRouter, IPonsFeeEscrow} from "../src/FeeRouter.sol";
 import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 import {Pausable} from "@openzeppelin/contracts/utils/Pausable.sol";
 
@@ -35,19 +35,19 @@ contract FeeRouterTest is Test {
     address payable reserve = payable(makeAddr("reserve"));
 
     function setUp() public {
-        router = new FeeRouter(owner, treasury, reserve, 1_000);
+        router = new FeeRouter(owner, treasury, reserve, 1_000, IPonsFeeEscrow(address(0)));
     }
 
     function test_constructorRejectsZeroAddresses() public {
         vm.expectRevert(FeeRouter.ZeroAddress.selector);
-        new FeeRouter(owner, payable(address(0)), reserve, 1_000);
+        new FeeRouter(owner, payable(address(0)), reserve, 1_000, IPonsFeeEscrow(address(0)));
         vm.expectRevert(FeeRouter.ZeroAddress.selector);
-        new FeeRouter(owner, treasury, payable(address(0)), 1_000);
+        new FeeRouter(owner, treasury, payable(address(0)), 1_000, IPonsFeeEscrow(address(0)));
     }
 
     function test_constructorRejectsSponsorShareAboveCap() public {
         vm.expectRevert(abi.encodeWithSelector(FeeRouter.SponsorShareTooHigh.selector, 5_001, 5_000));
-        new FeeRouter(owner, treasury, reserve, 5_001);
+        new FeeRouter(owner, treasury, reserve, 5_001, IPonsFeeEscrow(address(0)));
     }
 
     function test_receiveEmitsAndNeverReverts() public {
@@ -96,7 +96,7 @@ contract FeeRouterTest is Test {
     }
 
     function test_distributeRevertsIfRecipientRejects() public {
-        FeeRouter r = new FeeRouter(owner, payable(address(new Rejector())), reserve, 1_000);
+        FeeRouter r = new FeeRouter(owner, payable(address(new Rejector())), reserve, 1_000, IPonsFeeEscrow(address(0)));
         vm.deal(address(r), 1 ether);
         vm.expectRevert();
         r.distribute();
@@ -106,7 +106,7 @@ contract FeeRouterTest is Test {
 
     function test_distributeIsReentrancySafe() public {
         Reentrant attacker = new Reentrant();
-        FeeRouter r = new FeeRouter(owner, payable(address(attacker)), reserve, 1_000);
+        FeeRouter r = new FeeRouter(owner, payable(address(attacker)), reserve, 1_000, IPonsFeeEscrow(address(0)));
         attacker.set(r);
         vm.deal(address(r), 10 ether);
         r.distribute();
@@ -176,5 +176,72 @@ contract FeeRouterTest is Test {
         vm.prank(owner);
         router.setAllocation(bps);
         assertEq(uint256(router.sponsorBps()) + router.treasuryBps(), 10_000);
+    }
+}
+
+/// @dev Minimal Pons-style escrow: recipients claim their own credited balance.
+contract MockEscrow {
+    mapping(address => uint256) public balanceOf;
+
+    function credit(address recipient) external payable {
+        balanceOf[recipient] += msg.value;
+    }
+
+    function claim() external returns (uint256 amount) {
+        amount = balanceOf[msg.sender];
+        balanceOf[msg.sender] = 0;
+        (bool ok,) = msg.sender.call{value: amount}("");
+        require(ok, "claim failed");
+    }
+}
+
+contract FeeRouterEscrowTest is Test {
+    MockEscrow escrow;
+    FeeRouter router;
+    address owner = makeAddr("owner");
+    address payable treasury = payable(makeAddr("treasury"));
+    address payable reserve = payable(makeAddr("reserve"));
+
+    function setUp() public {
+        escrow = new MockEscrow();
+        router = new FeeRouter(owner, treasury, reserve, 1_000, IPonsFeeEscrow(address(escrow)));
+    }
+
+    function test_claimFeesPullsOwnBalanceThenDistributes() public {
+        escrow.credit{value: 2 ether}(address(router));
+        vm.expectEmit(false, false, false, true);
+        emit FeeRouter.FeesClaimed(2 ether);
+        uint256 amount = router.claimFees();
+        assertEq(amount, 2 ether);
+        assertEq(address(router).balance, 2 ether);
+        router.distribute();
+        assertEq(treasury.balance, 1.8 ether);
+        assertEq(reserve.balance, 0.2 ether);
+    }
+
+    function test_claimFeesRevertsWhenNothingCredited() public {
+        vm.expectRevert(FeeRouter.NothingToClaim.selector);
+        router.claimFees();
+    }
+
+    function test_claimFeesRevertsWithoutEscrow() public {
+        FeeRouter r = new FeeRouter(owner, treasury, reserve, 1_000, IPonsFeeEscrow(address(0)));
+        vm.expectRevert(FeeRouter.EscrowNotConfigured.selector);
+        r.claimFees();
+    }
+
+    function test_claimFeesRespectsPause() public {
+        escrow.credit{value: 1 ether}(address(router));
+        vm.prank(owner);
+        router.pause();
+        vm.expectRevert(Pausable.EnforcedPause.selector);
+        router.claimFees();
+    }
+
+    function test_claimIsCallableByAnyone() public {
+        escrow.credit{value: 1 ether}(address(router));
+        vm.prank(makeAddr("stranger"));
+        router.claimFees();
+        assertEq(address(router).balance, 1 ether);
     }
 }

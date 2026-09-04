@@ -11,3 +11,6 @@ export * from "./client";
 export * from "./blockscout";
 export * from "./simulate";
 export * from "./scanner";
+export * from "./indexer";
+export * from "./indexers";
+export * from "./proxy";

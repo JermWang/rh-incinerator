@@ -164,6 +164,26 @@ export class MemoryStore implements SponsorStore {
     return exp !== undefined && exp > now;
   }
 
+  private buckets = new Map<string, { count: number; windowStart: number }>();
+  async consumeRateLimit(key: string, limit: number, windowMs: number, now: number): Promise<boolean> {
+    const b = this.buckets.get(key);
+    if (!b || now - b.windowStart >= windowMs) {
+      this.buckets.set(key, { count: 1, windowStart: now });
+      if (this.buckets.size > 20_000) for (const [k, v] of this.buckets) if (now - v.windowStart >= windowMs) this.buckets.delete(k);
+      return true;
+    }
+    if (b.count >= limit) return false;
+    b.count += 1;
+    return true;
+  }
+
+  async listUnsettledSponsoredOperations(limit: number): Promise<SponsoredOperation[]> {
+    return [...this.sponsored.values()]
+      .filter((o) => (o.status === "RESERVED" || o.status === "SUBMITTED") && o.userOpHash)
+      .sort((a, b) => a.createdAt - b.createdAt)
+      .slice(0, limit);
+  }
+
   async metrics(now: number): Promise<Metrics> {
     const dayAgo = now - 24 * 60 * 60 * 1000;
     let gas24hWei = 0n;

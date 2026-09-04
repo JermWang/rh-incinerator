@@ -239,6 +239,24 @@ export class PostgresStore implements SponsorStore {
     return exp !== undefined && new Date(exp as string).getTime() > now;
   }
 
+  async consumeRateLimit(key: string, limit: number, windowMs: number, now: number): Promise<boolean> {
+    const sql = await this.db();
+    const windowStart = new Date(now - windowMs);
+    const rows = await sql`insert into rate_limits (key, window_start, count) values (${key}, ${new Date(now)}, 1)
+      on conflict (key) do update set
+        count = case when rate_limits.window_start < ${windowStart} then 1 else rate_limits.count + 1 end,
+        window_start = case when rate_limits.window_start < ${windowStart} then ${new Date(now)} else rate_limits.window_start end
+      returning count`;
+    if (Math.random() < 0.01) await sql`delete from rate_limits where window_start < now() - interval '1 hour'`;
+    return Number(rows[0]?.count ?? 1) <= limit;
+  }
+
+  async listUnsettledSponsoredOperations(limit: number): Promise<SponsoredOperation[]> {
+    const sql = await this.db();
+    const rows = await sql`select * from sponsored_operations where status in ('RESERVED','SUBMITTED') and user_op_hash is not null order by created_at asc limit ${limit}`;
+    return rows.map(rowToSponsored);
+  }
+
   async metrics(now: number): Promise<Metrics> {
     const sql = await this.db();
     const dayAgo = new Date(now - 24 * 60 * 60 * 1000);

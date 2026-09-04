@@ -87,3 +87,9 @@ create table if not exists siwe_nonces (
   nonce text primary key,
   expires_at timestamptz not null
 );
+
+create table if not exists rate_limits (
+  key text primary key,
+  window_start timestamptz not null,
+  count integer not null default 0
+);

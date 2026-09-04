@@ -102,10 +102,10 @@ export function Dashboard() {
         </div>
 
         <div className="mt-6 grid grid-cols-2 gap-3 md:grid-cols-5">
-          <Stat label="Assets found" value={assetsFound} loading={scan.isLoading} hint={scan.data?.partial && !(scan.data.partial.tokens && scan.data.partial.nfts) ? "Partial scan" : undefined} />
-          <Stat label="Selected" value={sel.counts.total} tone={sel.counts.total > 0 ? "accent" : "neutral"} />
-          <Stat label="Approvals" value={scan.data?.approvals.length ?? 0} loading={scan.isLoading} hint={scan.data && !scan.data.partial.approvals ? "Scan incomplete" : undefined} />
-          <Stat label="Your gas" value={yourGas} tone={quote?.sponsorship.eligible ? "accent" : "neutral"} hint={yourGasHint} />
+          <Stat testId="stat-assets-found" label="Assets found" value={assetsFound} loading={scan.isLoading} hint={scan.data?.partial && !(scan.data.partial.tokens && scan.data.partial.nfts) ? "Partial scan" : undefined} />
+          <Stat testId="stat-selected" label="Selected" value={sel.counts.total} tone={sel.counts.total > 0 ? "accent" : "neutral"} />
+          <Stat testId="stat-approvals" label="Approvals" value={scan.data?.approvals.length ?? 0} loading={scan.isLoading} hint={scan.data && !scan.data.partial.approvals ? "Scan incomplete" : undefined} />
+          <Stat testId="stat-your-gas" label="Your gas" value={yourGas} tone={quote?.sponsorship.eligible ? "accent" : "neutral"} hint={yourGasHint} />
           <SponsorStatusCard compact className="col-span-2 md:col-span-1" />
         </div>
 

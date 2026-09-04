@@ -1,9 +1,9 @@
-import { getAddress, isAddress, isAddressEqual, pad, type Address, type Hex, type PublicClient } from "viem";
+import { getAddress, isAddress, isAddressEqual, type Address, type PublicClient } from "viem";
 import { erc1155Abi, erc20Abi, erc721Abi } from "./abis";
-import type { BlockscoutClient, BsAddressInfo, BsToken } from "./blockscout";
 import { classifyAsset } from "./classify";
-import { MAX_UINT256, TOPIC_APPROVAL, TOPIC_APPROVAL_FOR_ALL, type SupportedChainId } from "./constants";
+import { MAX_UINT256, type SupportedChainId } from "./constants";
 import { formatAmount } from "./format";
+import type { AddressInfo, ApprovalLogHint, IndexerProvider, TokenMeta } from "./indexer";
 import type { CleanupOperation } from "./operations";
 import { simulateOperations } from "./simulate";
 import type { ApprovalItem, ApprovalRisk, BurnMechanism, NftAsset, ScanResult, SimulatedCall, TokenAsset } from "./types";
@@ -11,11 +11,13 @@ import type { ApprovalItem, ApprovalRisk, BurnMechanism, NftAsset, ScanResult, S
 export interface ScannerDeps {
   chainId: SupportedChainId;
   client: PublicClient;
-  blockscout: BlockscoutClient;
+  indexer: IndexerProvider;
   /** Probe burn mechanisms via simulation (default true). */
   probeMechanisms?: boolean;
   /** Gas ceiling used when probing mechanisms. */
   maxGasPerCall: bigint;
+  /** Ops per simulation request; raise behind a dedicated provider. */
+  simulateChunk?: number | undefined;
   log?: (msg: string, meta?: Record<string, unknown>) => void;
 }
 
@@ -23,8 +25,6 @@ const MAX_TOKENS = 400;
 const MAX_NFTS = 300;
 const MAX_APPROVALS = 300;
 const ENRICH_CONCURRENCY = 6;
-/** Ops per probe request; see DEFAULT_SIMULATE_CHUNK for the gateway limit. */
-const PROBE_CHUNK = 10;
 
 /**
  * Scan a wallet on Robinhood Chain. The indexer discovers candidates; every
@@ -84,59 +84,50 @@ export async function scanWallet(deps: ScannerDeps, rawAddress: Address): Promis
 // ---------------------------------------------------------------------------
 
 async function scanTokens(deps: ScannerDeps, owner: Address): Promise<TokenAsset[]> {
-  const hints = (await deps.blockscout.addressTokens(owner, "ERC-20")).slice(0, MAX_TOKENS);
+  const hints = (await deps.indexer.tokenBalances(owner)).slice(0, MAX_TOKENS);
   if (hints.length === 0) return [];
 
   // Truth from chain: balances via multicall.
   const balances = await deps.client.multicall({
     allowFailure: true,
-    contracts: hints.map((h) => ({
-      address: h.token.address_hash,
-      abi: erc20Abi,
-      functionName: "balanceOf" as const,
-      args: [owner] as const,
-    })),
+    contracts: hints.map((h) => ({ address: h.address, abi: erc20Abi, functionName: "balanceOf" as const, args: [owner] as const })),
   });
 
   const live = hints
     .map((h, i) => ({ hint: h, balance: balances[i]?.status === "success" ? (balances[i]!.result as bigint) : 0n }))
     .filter((x) => x.balance > 0n);
 
-  const infos = await mapLimit(live, ENRICH_CONCURRENCY, async ({ hint }) =>
-    deps.blockscout.addressInfo(hint.token.address_hash).catch(() => null),
-  );
+  const infos = await mapLimit(live, ENRICH_CONCURRENCY, async ({ hint }) => deps.indexer.addressInfo(hint.address).catch(() => null));
 
   const assets: TokenAsset[] = live.map(({ hint, balance }, i) => {
-    const t = hint.token;
     const info = infos[i] ?? null;
-    const decimals = parseDecimals(t.decimals);
-    const price = t.exchange_rate ? Number(t.exchange_rate) : null;
-    const valueUsd = price && Number.isFinite(price) ? price * Number(formatUnitsNumber(balance, decimals)) : null;
+    const decimals = hint.decimals !== null && hint.decimals >= 0 && hint.decimals <= 77 ? hint.decimals : 18;
+    const valueUsd = hint.priceUsd && Number.isFinite(hint.priceUsd) ? hint.priceUsd * (Number(balance) / 10 ** decimals) : null;
     const cls = classifyAsset({
       chainId: deps.chainId,
       standard: "ERC20",
-      address: getAddress(t.address_hash),
-      name: t.name ?? "Unknown token",
-      symbol: t.symbol ?? "???",
-      verified: info?.is_verified ?? false,
-      isScam: info?.is_scam ?? false,
-      reputation: t.reputation ?? info?.reputation ?? null,
-      holdersCount: t.holders_count ? Number(t.holders_count) : null,
+      address: hint.address,
+      name: hint.name ?? "Unknown token",
+      symbol: hint.symbol ?? "???",
+      verified: info?.isVerified ?? false,
+      isScam: info?.isScam ?? false,
+      reputation: hint.reputation ?? info?.reputation ?? null,
+      holdersCount: hint.holdersCount,
       valueUsd,
-      implementation: primaryImplementation(info),
+      implementation: info?.implementation ?? undefined,
     });
     return {
       standard: "ERC20",
-      address: getAddress(t.address_hash),
-      symbol: t.symbol ?? "???",
-      name: t.name ?? "Unknown token",
+      address: hint.address,
+      symbol: hint.symbol ?? "???",
+      name: hint.name ?? "Unknown token",
       decimals,
       balance: balance.toString(),
       balanceFormatted: formatAmount(balance, decimals),
       valueUsd,
-      iconUrl: t.icon_url,
-      verified: info?.is_verified ?? false,
-      holdersCount: t.holders_count ? Number(t.holders_count) : null,
+      iconUrl: hint.iconUrl,
+      verified: info?.isVerified ?? false,
+      holdersCount: hint.holdersCount,
       mechanism: "UNKNOWN",
       ...cls,
     };
@@ -151,7 +142,7 @@ async function scanTokens(deps: ScannerDeps, owner: Address): Promise<TokenAsset
  * transfer(DEAD, amount). Anything that misbehaves is UNSUPPORTED.
  */
 async function probeTokenMechanisms(deps: ScannerDeps, owner: Address, assets: TokenAsset[]): Promise<void> {
-  for (const chunk of chunks(assets, PROBE_CHUNK)) {
+  for (const chunk of chunks(assets, probeChunk(deps))) {
     const burnOps: CleanupOperation[] = chunk.map((a) => ({ kind: "ERC20_BURN", token: a.address, owner, amount: a.balance }));
     const deadOps: CleanupOperation[] = chunk.map((a) => ({ kind: "ERC20_DEAD", token: a.address, owner, amount: a.balance }));
     // Sequential on purpose: the public gateway rate-limits bursts of simulations.
@@ -161,9 +152,15 @@ async function probeTokenMechanisms(deps: ScannerDeps, owner: Address, assets: T
   }
 }
 
+function probeChunk(deps: ScannerDeps): number {
+  return Math.max(1, deps.simulateChunk ?? 10);
+}
+
 async function probe(deps: ScannerDeps, ops: CleanupOperation[], label: string): Promise<SimulatedCall[] | null> {
   try {
-    return await withRetry(() => simulateOperations(deps.client, ops, { maxGasPerCall: deps.maxGasPerCall }));
+    return await withRetry(() =>
+      simulateOperations(deps.client, ops, { maxGasPerCall: deps.maxGasPerCall, chunkSize: probeChunk(deps) }),
+    );
   } catch (e) {
     deps.log?.(`probe ${label} failed`, { error: errMsg(e), ops: ops.length });
     return null;
@@ -208,73 +205,61 @@ async function withRetry<T>(fn: () => Promise<T>, attempts = 4, baseMs = 700): P
 // ---------------------------------------------------------------------------
 
 async function scanNfts(deps: ScannerDeps, owner: Address): Promise<NftAsset[]> {
-  const instances = (await deps.blockscout.addressNfts(owner)).slice(0, MAX_NFTS);
+  const instances = (await deps.indexer.nftHoldings(owner)).slice(0, MAX_NFTS);
   if (instances.length === 0) return [];
 
   const ownership = await deps.client.multicall({
     allowFailure: true,
     contracts: instances.map((n) =>
-      n.token_type === "ERC-1155" || n.token.type === "ERC-1155"
-        ? {
-            address: n.token.address_hash,
-            abi: erc1155Abi,
-            functionName: "balanceOf" as const,
-            args: [owner, BigInt(n.id)] as const,
-          }
-        : {
-            address: n.token.address_hash,
-            abi: erc721Abi,
-            functionName: "ownerOf" as const,
-            args: [BigInt(n.id)] as const,
-          },
+      n.standard === "ERC1155"
+        ? { address: n.address, abi: erc1155Abi, functionName: "balanceOf" as const, args: [owner, BigInt(n.tokenId)] as const }
+        : { address: n.address, abi: erc721Abi, functionName: "ownerOf" as const, args: [BigInt(n.tokenId)] as const },
     ),
   });
 
   const live = instances
     .map((n, i) => {
       const r = ownership[i];
-      const is1155 = n.token_type === "ERC-1155" || n.token.type === "ERC-1155";
       if (!r || r.status !== "success") return null;
-      if (is1155) {
+      if (n.standard === "ERC1155") {
         const bal = r.result as bigint;
-        return bal > 0n ? { n, is1155, amount: bal } : null;
+        return bal > 0n ? { n, amount: bal } : null;
       }
       const o = r.result as Address;
-      return isAddress(o) && isAddressEqual(o, owner) ? { n, is1155, amount: 1n } : null;
+      return isAddress(o) && isAddressEqual(o, owner) ? { n, amount: 1n } : null;
     })
     .filter((x): x is NonNullable<typeof x> => x !== null);
 
-  const collections = [...new Set(live.map((x) => x.n.token.address_hash.toLowerCase()))];
-  const infoByCollection = new Map<string, BsAddressInfo | null>();
+  const collections = [...new Set(live.map((x) => x.n.address.toLowerCase()))];
+  const infoByCollection = new Map<string, AddressInfo | null>();
   await mapLimit(collections, ENRICH_CONCURRENCY, async (addr) => {
-    infoByCollection.set(addr, await deps.blockscout.addressInfo(addr as Address).catch(() => null));
+    infoByCollection.set(addr, await deps.indexer.addressInfo(addr as Address).catch(() => null));
   });
 
-  const assets: NftAsset[] = live.map(({ n, is1155, amount }) => {
-    const t = n.token;
-    const info = infoByCollection.get(t.address_hash.toLowerCase()) ?? null;
+  const assets: NftAsset[] = live.map(({ n, amount }) => {
+    const info = infoByCollection.get(n.address.toLowerCase()) ?? null;
     const cls = classifyAsset({
       chainId: deps.chainId,
-      standard: is1155 ? "ERC1155" : "ERC721",
-      address: getAddress(t.address_hash),
-      name: t.name ?? "Unknown collection",
-      symbol: t.symbol ?? "",
-      verified: info?.is_verified ?? false,
-      isScam: info?.is_scam ?? false,
-      reputation: t.reputation ?? info?.reputation ?? null,
-      holdersCount: t.holders_count ? Number(t.holders_count) : null,
+      standard: n.standard,
+      address: n.address,
+      name: n.collectionName ?? "Unknown collection",
+      symbol: n.symbol ?? "",
+      verified: info?.isVerified ?? false,
+      isScam: info?.isScam ?? false,
+      reputation: n.reputation ?? info?.reputation ?? null,
+      holdersCount: n.holdersCount,
       valueUsd: null,
-      implementation: primaryImplementation(info),
+      implementation: info?.implementation ?? undefined,
     });
     return {
-      standard: is1155 ? "ERC1155" : "ERC721",
-      address: getAddress(t.address_hash),
-      collectionName: t.name ?? "Unknown collection",
-      symbol: t.symbol ?? "",
-      tokenId: n.id,
+      standard: n.standard,
+      address: n.address,
+      collectionName: n.collectionName ?? "Unknown collection",
+      symbol: n.symbol ?? "",
+      tokenId: n.tokenId,
       amount: amount.toString(),
-      imageUrl: n.image_url ?? n.metadata?.image ?? null,
-      verified: info?.is_verified ?? false,
+      imageUrl: n.imageUrl,
+      verified: info?.isVerified ?? false,
       mechanism: "UNKNOWN",
       ...cls,
     };
@@ -298,7 +283,7 @@ async function probeNftMechanisms(deps: ScannerDeps, owner: Address, assets: Nft
     else groups.set(key, [a]);
   }
   const reps = [...groups.values()].map((g) => g[0]!);
-  for (const chunk of chunks(reps, PROBE_CHUNK)) {
+  for (const chunk of chunks(reps, probeChunk(deps))) {
     const burnOps: CleanupOperation[] = chunk.map((a) =>
       a.standard === "ERC1155"
         ? { kind: "ERC1155_BURN", token: a.address, owner, tokenId: a.tokenId, amount: a.amount }
@@ -327,72 +312,17 @@ async function probeNftMechanisms(deps: ScannerDeps, owner: Address, assets: Nft
 // Approvals
 // ---------------------------------------------------------------------------
 
-interface ApprovalCandidate {
-  kind: ApprovalItem["kind"];
-  token: Address;
-  spender: Address;
-  tokenId?: bigint;
-  block: number;
-  timestamp: number;
-  txHash: Hex;
-}
-
 async function scanApprovals(deps: ScannerDeps, owner: Address): Promise<ApprovalItem[]> {
-  const ownerTopic = pad(owner, { size: 32 }).toLowerCase() as Hex;
-  const [approvalLogs, operatorLogs] = await Promise.all([
-    deps.blockscout.logs({ topic0: TOPIC_APPROVAL, topic1: ownerTopic }),
-    deps.blockscout.logs({ topic0: TOPIC_APPROVAL_FOR_ALL, topic1: ownerTopic }),
-  ]);
+  const logs = await deps.indexer.approvalLogs(owner);
 
   // Keep only the latest event per (token, spender[, tokenId]).
-  const latest = new Map<string, ApprovalCandidate>();
-  const consider = (c: ApprovalCandidate) => {
+  const latest = new Map<string, ApprovalLogHint>();
+  for (const c of logs) {
     const key = `${c.kind}:${c.token.toLowerCase()}:${c.spender.toLowerCase()}:${c.tokenId?.toString() ?? ""}`;
     const prev = latest.get(key);
     if (!prev || prev.block < c.block) latest.set(key, c);
-  };
-
-  for (const log of approvalLogs) {
-    const topics = log.topics.filter((t): t is Hex => Boolean(t));
-    if (topics.length === 3) {
-      // ERC-20 Approval(owner, spender, value)
-      consider({
-        kind: "ERC20_ALLOWANCE",
-        token: getAddress(log.address),
-        spender: topicAddress(topics[2]!),
-        block: Number(log.blockNumber),
-        timestamp: Number(log.timeStamp),
-        txHash: log.transactionHash,
-      });
-    } else if (topics.length === 4) {
-      // ERC-721 Approval(owner, approved, tokenId)
-      consider({
-        kind: "ERC721_TOKEN",
-        token: getAddress(log.address),
-        spender: topicAddress(topics[2]!),
-        tokenId: BigInt(topics[3]!),
-        block: Number(log.blockNumber),
-        timestamp: Number(log.timeStamp),
-        txHash: log.transactionHash,
-      });
-    }
   }
-  for (const log of operatorLogs) {
-    const topics = log.topics.filter((t): t is Hex => Boolean(t));
-    if (topics.length !== 3) continue;
-    consider({
-      kind: "OPERATOR",
-      token: getAddress(log.address),
-      spender: topicAddress(topics[2]!),
-      block: Number(log.blockNumber),
-      timestamp: Number(log.timeStamp),
-      txHash: log.transactionHash,
-    });
-  }
-
-  const candidates = [...latest.values()]
-    .filter((c) => !isAddressEqual(c.spender, "0x0000000000000000000000000000000000000000"))
-    .slice(0, MAX_APPROVALS);
+  const candidates = [...latest.values()].slice(0, MAX_APPROVALS);
   if (candidates.length === 0) return [];
 
   // Truth from chain: live allowance / approval / operator status.
@@ -403,12 +333,7 @@ async function scanApprovals(deps: ScannerDeps, owner: Address): Promise<Approva
         return { address: c.token, abi: erc20Abi, functionName: "allowance" as const, args: [owner, c.spender] as const };
       if (c.kind === "ERC721_TOKEN")
         return { address: c.token, abi: erc721Abi, functionName: "getApproved" as const, args: [c.tokenId!] as const };
-      return {
-        address: c.token,
-        abi: erc721Abi,
-        functionName: "isApprovedForAll" as const,
-        args: [owner, c.spender] as const,
-      };
+      return { address: c.token, abi: erc721Abi, functionName: "isApprovedForAll" as const, args: [owner, c.spender] as const };
     }),
   });
 
@@ -433,19 +358,12 @@ async function scanApprovals(deps: ScannerDeps, owner: Address): Promise<Approva
   if (erc721Checks.length > 0) {
     const owners = await deps.client.multicall({
       allowFailure: true,
-      contracts: erc721Checks.map((a) => ({
-        address: a.c.token,
-        abi: erc721Abi,
-        functionName: "ownerOf" as const,
-        args: [a.c.tokenId!] as const,
-      })),
+      contracts: erc721Checks.map((a) => ({ address: a.c.token, abi: erc721Abi, functionName: "ownerOf" as const, args: [a.c.tokenId!] as const })),
     });
     const stillOwned = new Set<string>();
     erc721Checks.forEach((a, i) => {
       const r = owners[i];
-      if (r?.status === "success" && isAddressEqual(r.result as Address, owner)) {
-        stillOwned.add(`${a.c.token}:${a.c.tokenId}`);
-      }
+      if (r?.status === "success" && isAddressEqual(r.result as Address, owner)) stillOwned.add(`${a.c.token}:${a.c.tokenId}`);
     });
     for (let i = active.length - 1; i >= 0; i--) {
       const a = active[i]!;
@@ -455,14 +373,14 @@ async function scanApprovals(deps: ScannerDeps, owner: Address): Promise<Approva
 
   const tokenAddrs = [...new Set(active.map((a) => a.c.token.toLowerCase()))];
   const spenderAddrs = [...new Set(active.map((a) => a.c.spender.toLowerCase()))];
-  const tokenInfo = new Map<string, BsToken | null>();
-  const spenderInfo = new Map<string, BsAddressInfo | null>();
+  const tokenInfo = new Map<string, TokenMeta | null>();
+  const spenderInfo = new Map<string, AddressInfo | null>();
   await Promise.all([
     mapLimit(tokenAddrs, ENRICH_CONCURRENCY, async (a) => {
-      tokenInfo.set(a, await deps.blockscout.tokenInfo(a as Address).catch(() => null));
+      tokenInfo.set(a, await deps.indexer.tokenMeta(a as Address).catch(() => null));
     }),
     mapLimit(spenderAddrs, ENRICH_CONCURRENCY, async (a) => {
-      spenderInfo.set(a, await deps.blockscout.addressInfo(a as Address).catch(() => null));
+      spenderInfo.set(a, await deps.indexer.addressInfo(a as Address).catch(() => null));
     }),
   ]);
 
@@ -470,7 +388,7 @@ async function scanApprovals(deps: ScannerDeps, owner: Address): Promise<Approva
     .map(({ c, amount }) => {
       const t = tokenInfo.get(c.token.toLowerCase()) ?? null;
       const s = spenderInfo.get(c.spender.toLowerCase()) ?? null;
-      const decimals = t?.decimals ? parseDecimals(t.decimals) : null;
+      const decimals = t?.decimals ?? null;
       const unlimited = amount !== undefined && amount >= MAX_UINT256 / 2n;
       const { risk, reasons } = assessSpender(s, unlimited, c.kind);
       const standard = c.kind === "ERC20_ALLOWANCE" ? "ERC20" : t?.type === "ERC-1155" ? "ERC1155" : "ERC721";
@@ -481,12 +399,12 @@ async function scanApprovals(deps: ScannerDeps, owner: Address): Promise<Approva
         asset: { address: c.token, symbol: t?.symbol ?? "???", name: t?.name ?? "Unknown asset", decimals },
         spender: c.spender,
         spenderName: s?.name ?? null,
-        spenderIsContract: s?.is_contract ?? false,
-        spenderVerified: s?.is_verified ?? false,
+        spenderIsContract: s?.isContract ?? false,
+        spenderVerified: s?.isVerified ?? false,
         risk,
         riskReasons: reasons,
         lastActivityBlock: c.block,
-        lastActivityAt: c.timestamp * 1000,
+        lastActivityAt: c.timestamp ? c.timestamp * 1000 : null,
         txHash: c.txHash,
       };
       if (amount !== undefined) {
@@ -500,20 +418,17 @@ async function scanApprovals(deps: ScannerDeps, owner: Address): Promise<Approva
     .sort((a, b) => riskRank(b.risk) - riskRank(a.risk) || (b.lastActivityBlock ?? 0) - (a.lastActivityBlock ?? 0));
 }
 
-function assessSpender(
-  s: BsAddressInfo | null,
-  unlimited: boolean,
-  kind: ApprovalItem["kind"],
-): { risk: ApprovalRisk; reasons: string[] } {
+function assessSpender(s: AddressInfo | null, unlimited: boolean, kind: ApprovalItem["kind"]): { risk: ApprovalRisk; reasons: string[] } {
   const reasons: string[] = [];
   if (!s) return { risk: "UNKNOWN", reasons: ["Spender could not be resolved"] };
-  if (s.is_scam) reasons.push("Spender flagged by explorer");
-  if (!s.is_contract) reasons.push("Spender is an externally owned account, not a contract");
-  if (s.is_contract && !s.is_verified) reasons.push("Spender contract source is not verified");
+  if (s.isScam) reasons.push("Spender flagged by explorer");
+  if (!s.isContract) reasons.push("Spender is an externally owned account, not a contract");
+  if (s.isContract && s.isVerified === false) reasons.push("Spender contract source is not verified");
+  if (s.isContract && s.isVerified === null) reasons.push("Spender verification status unknown");
   if (unlimited) reasons.push("Unlimited allowance");
   if (kind === "OPERATOR") reasons.push("Operator can move every token in the collection");
-  if (s.is_scam || !s.is_contract) return { risk: "HIGH", reasons };
-  if (!s.is_verified || unlimited || kind === "OPERATOR") return { risk: "MEDIUM", reasons };
+  if (s.isScam || !s.isContract) return { risk: "HIGH", reasons };
+  if (!s.isVerified || unlimited || kind === "OPERATOR") return { risk: "MEDIUM", reasons };
   return { risk: "LOW", reasons: reasons.length ? reasons : ["Verified contract"] };
 }
 
@@ -529,24 +444,6 @@ function sortAssets(a: TokenAsset, b: TokenAsset): number {
   const order = (t: TokenAsset) =>
     t.classification === "PROTECTED" ? 3 : t.classification === "VALUABLE" ? 2 : t.classification === "VERIFIED" ? 1 : 0;
   return order(a) - order(b) || (b.valueUsd ?? 0) - (a.valueUsd ?? 0) || a.symbol.localeCompare(b.symbol);
-}
-
-function primaryImplementation(info: BsAddressInfo | null): { address: Address; name: string | null } | undefined {
-  const impl = info?.implementations?.[0];
-  return impl ? { address: impl.address_hash, name: impl.name } : undefined;
-}
-
-function parseDecimals(d: string | null): number {
-  const n = d ? Number(d) : 18;
-  return Number.isFinite(n) && n >= 0 && n <= 77 ? n : 18;
-}
-
-function formatUnitsNumber(v: bigint, decimals: number): number {
-  return Number(v) / 10 ** decimals;
-}
-
-function topicAddress(topic: Hex): Address {
-  return getAddress(`0x${topic.slice(-40)}`);
 }
 
 function chunks<T>(arr: T[], size: number): T[][] {

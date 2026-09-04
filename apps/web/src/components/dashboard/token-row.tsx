@@ -34,6 +34,7 @@ export const TokenRow = memo(function TokenRow({ token, selected, unlocked, spon
         disabled && "opacity-70",
       )}
       data-selected={selected}
+      data-testid={`asset-row-${token.symbol}`}
     >
       <Checkbox
         checked={selected}
@@ -68,12 +69,12 @@ export const TokenRow = memo(function TokenRow({ token, selected, unlocked, spon
         <div className="tnum text-[14px] font-medium text-fg">{token.balanceFormatted}</div>
         <div className="tnum mt-0.5 text-[11.5px] text-fg-3">{token.valueUsd !== null ? formatUsd(token.valueUsd) : "No price"}</div>
       </div>
-      <div className="hidden w-[172px] flex-col items-end gap-1.5 md:flex">
+      <div data-testid="asset-actions-desktop" className="hidden w-[172px] flex-col items-end gap-1.5 md:flex">
         <MechanismPill mechanism={token.mechanism} reason={token.mechanismReason} />
         {supported && <span className={cn("text-[11px]", sponsorPossible ? "text-accent" : "text-fg-3")}>{sponsorPossible ? "Eligible for free" : "Standard gas"}</span>}
       </div>
       {locked && supported && (
-        <div className="absolute inset-x-3 -bottom-px hidden translate-y-full pt-1 group-hover:block group-focus-within:block md:inset-x-4">
+        <div className="absolute inset-x-3 -bottom-px z-10 hidden translate-y-full pt-1 group-hover:block group-focus-within:block md:inset-x-4">
           {!confirmUnlock ? (
             <button onClick={() => setConfirmUnlock(true)} className="inline-flex items-center gap-1.5 rounded-b-[10px] border border-t-0 border-hairline bg-bg-2 px-2.5 py-1.5 text-[11px] uppercase tracking-[0.1em] text-fg-3 hover:text-fg-2">
               <Unlock className="size-3" /> Protected · unlock to select

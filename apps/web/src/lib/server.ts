@@ -1,6 +1,6 @@
 import "server-only";
 import { privateKeyToAccount, type PrivateKeyAccount } from "viem/accounts";
-import { createChainClient, getBlockscout, getDeployment, type Deployment } from "@incinerator/chain";
+import { createChainClient, createIndexer, getDeployment, type Deployment, type IndexerProvider } from "@incinerator/chain";
 import {
   getSponsorStatus,
   getStore,
@@ -29,7 +29,7 @@ export interface ServerContext {
   store: SponsorStore;
   deployment: Deployment;
   signer: PrivateKeyAccount | null;
-  blockscout: ReturnType<typeof getBlockscout>;
+  indexer: IndexerProvider;
   policy: () => Promise<SponsorPolicy>;
   evalDeps: () => Promise<EvalDeps>;
   paymasterDeps: (session: SessionPayload | null) => Promise<PaymasterDeps>;
@@ -60,6 +60,7 @@ export function getServerContext(): ServerContext {
     deployment,
     now: () => Date.now(),
     log,
+    simulateChunk: env.simulateChunk,
   });
   const paymasterDeps = async (session: SessionPayload | null): Promise<PaymasterDeps> => ({
     ...(await evalDeps()),
@@ -88,7 +89,7 @@ export function getServerContext(): ServerContext {
     store,
     deployment,
     signer,
-    blockscout: getBlockscout(env.chainId),
+    indexer: createIndexer(env.chainId, client, { alchemyApiKey: env.alchemyApiKey, blockscoutApiKey: env.blockscoutApiKey }),
     policy,
     evalDeps,
     paymasterDeps,
@@ -99,24 +100,17 @@ export function getServerContext(): ServerContext {
   return ctx;
 }
 
-/** Small in-memory token bucket for public endpoints. */
-const buckets = new Map<string, { tokens: number; updated: number }>();
-export function rateLimit(key: string, perMinute: number): boolean {
-  const now = Date.now();
-  const b = buckets.get(key) ?? { tokens: perMinute, updated: now };
-  const refill = ((now - b.updated) / 60_000) * perMinute;
-  b.tokens = Math.min(perMinute, b.tokens + refill);
-  b.updated = now;
-  if (b.tokens < 1) {
-    buckets.set(key, b);
-    return false;
+/**
+ * Rate limiting through the sponsor store: in-memory for a single instance,
+ * shared through Postgres when DATABASE_URL is set.
+ */
+export async function rateLimit(key: string, perMinute: number): Promise<boolean> {
+  try {
+    return await getServerContext().store.consumeRateLimit(key, perMinute, 60_000, Date.now());
+  } catch {
+    // A broken limiter must not take the API down; fall back to allowing.
+    return true;
   }
-  b.tokens -= 1;
-  buckets.set(key, b);
-  if (buckets.size > 10_000) {
-    for (const [k, v] of buckets) if (now - v.updated > 120_000) buckets.delete(k);
-  }
-  return true;
 }
 
 export function clientIp(req: Request): string {

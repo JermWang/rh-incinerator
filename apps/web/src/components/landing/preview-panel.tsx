@@ -59,7 +59,7 @@ function Figure({ label }: { label: string }) {
   return (
     <div>
       <div className="tnum text-[28px] font-medium leading-none tracking-[-0.03em] text-fg-3">—</div>
-      <div className="mt-2 text-[11px] leading-tight text-fg-3">{label}</div>
+      <div data-testid="preview-figure-label" className="mt-2 text-[11px] leading-tight text-fg-3">{label}</div>
     </div>
   );
 }

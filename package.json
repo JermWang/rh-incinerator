@@ -13,7 +13,9 @@
     "test": "pnpm -r --filter './packages/**' test",
     "test:contracts": "pnpm --filter @incinerator/contracts test",
     "lint": "pnpm -r lint",
-    "admin": "pnpm --filter @incinerator/sponsor admin"
+    "admin": "pnpm --filter @incinerator/sponsor admin",
+    "reconcile": "pnpm --filter @incinerator/sponsor reconcile",
+    "test:e2e": "pnpm --filter @incinerator/web test:e2e"
   },
   "devDependencies": {
     "typescript": "5.9.3"

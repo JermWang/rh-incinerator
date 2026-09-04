@@ -5,7 +5,7 @@ import {Script, console2} from "forge-std/Script.sol";
 import {IEntryPoint} from "@account-abstraction/contracts/interfaces/IEntryPoint.sol";
 import {IncineratorPaymaster} from "../src/IncineratorPaymaster.sol";
 import {SponsorReserve, IEntryPointDeposit} from "../src/SponsorReserve.sol";
-import {FeeRouter} from "../src/FeeRouter.sol";
+import {FeeRouter, IPonsFeeEscrow} from "../src/FeeRouter.sol";
 
 /// @notice Deploys the sponsor stack. Run against testnet first.
 ///
@@ -53,7 +53,7 @@ contract Deploy is Script {
         );
         FeeRouter router;
         if (deployRouter) {
-            router = new FeeRouter(owner, treasury, payable(address(reserve)), sponsorBps);
+            router = new FeeRouter(owner, treasury, payable(address(reserve)), sponsorBps, IPonsFeeEscrow(vm.envOr("PONS_FEE_ESCROW", address(0))));
         }
         if (initialDeposit > 0) {
             paymaster.deposit{value: initialDeposit}();

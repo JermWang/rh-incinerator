@@ -53,6 +53,8 @@ export interface EvalDeps {
   deployment: Deployment;
   now: () => number;
   log?: (msg: string, meta?: Record<string, unknown>) => void;
+  /** Ops per eth_simulateV1 request. */
+  simulateChunk?: number | undefined;
 }
 
 export interface EvalSuccess {
@@ -128,7 +130,7 @@ export async function evaluateOperations(deps: EvalDeps, sender: Address, input:
   // 4. Simulation
   let simulations: SimulatedCall[];
   try {
-    simulations = await simulateOperations(deps.client, operations, { maxGasPerCall: policy.MAX_GAS_PER_CALL });
+    simulations = await simulateOperations(deps.client, operations, { maxGasPerCall: policy.MAX_GAS_PER_CALL, chunkSize: deps.simulateChunk });
   } catch (e) {
     deps.log?.("simulation error", { error: msg(e) });
     return deny("SIMULATION_FAILED", "simulation unavailable");

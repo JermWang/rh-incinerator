@@ -19,6 +19,8 @@ cd packages/contracts
 forge test
 export DEPLOYER_PRIVATE_KEY=0x… TREASURY=0x… OWNER=0x… SPONSOR_SIGNER=0x… KEEPER=0x…
 export INITIAL_DEPOSIT_WEI=5000000000000000        # 0.005 ETH initial paymaster deposit (optional)
+export DEPLOY_FEE_ROUTER=true                       # Option A only
+export PONS_FEE_ESCROW=0x…                          # Option A only: Pons V2 fee escrow; router must be the creator fee recipient
 forge script script/Deploy.s.sol --rpc-url robinhood_testnet --broadcast
 ```
 
@@ -36,7 +38,10 @@ SPONSOR_BACKEND=self
 SPONSOR_SIGNER_PRIVATE_KEY=0x…
 SERVER_SIGNING_SECRET=<32+ random bytes>
 ADMIN_TOKEN=<random>
-ALCHEMY_API_KEY=…            # optional: server RPC + bundler receipts
+ALCHEMY_API_KEY=…            # recommended: Alchemy indexer, higher simulation limits, bundler receipts
+ALCHEMY_GAS_POLICY_ID=…      # only for SPONSOR_BACKEND=alchemy
+BLOCKSCOUT_API_KEY=…         # optional: explorer rate limits
+CRON_SECRET=…                # bearer for GET /api/cron/reconcile
 DATABASE_URL=…               # optional: Postgres for multi-instance deployments
 ```
 
@@ -50,9 +55,13 @@ DATABASE_URL=…               # optional: Postgres for multi-instance deploymen
 4. Sponsored path (wallet with `paymasterService`): sign in (SIWE), confirm `You pay 0 ETH`, sign; verify the paymaster deposit decreased and `/api/transparency` reports the op.
 5. Negative tests: a token that reverts on transfer shows `UNSUPPORTED`; `pnpm admin pause` makes the badge read PAUSED and `/api/sponsor` deny with `SPONSOR_PAUSED`.
 
-## 4. Keeper
+## 4. Keeper and reconciliation
 
 Run `pnpm refill` on a schedule (e.g. every 10 minutes). It is idempotent and exits when nothing is refillable.
+
+Run `pnpm reconcile` (or hit `GET /api/cron/reconcile` with the `CRON_SECRET` bearer) every 2–5 minutes so sponsored budgets settle to actual cost.
+
+For Option A, call `FeeRouter.claimFees()` then `distribute()` periodically (both permissionless).
 
 ## 5. Mainnet
 

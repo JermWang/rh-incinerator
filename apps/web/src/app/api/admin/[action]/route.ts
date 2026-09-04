@@ -23,7 +23,7 @@ function authed(req: Request): boolean {
 }
 
 export async function GET(req: Request, { params }: { params: Promise<{ action: string }> }): Promise<Response> {
-  if (!rateLimit(`admin:${clientIp(req)}`, 60)) return json({ error: "rate limited" }, { status: 429 });
+  if (!(await rateLimit(`admin:${clientIp(req)}`, 60))) return json({ error: "rate limited" }, { status: 429 });
   if (!authed(req)) return json({ error: "unauthorized" }, { status: 401 });
   const { action } = await params;
   const ctx = getServerContext();
@@ -42,7 +42,7 @@ const denySchema = z.object({ address: z.string().refine((s) => isAddress(s)), r
 const undenySchema = z.object({ address: z.string().refine((s) => isAddress(s)) });
 
 export async function POST(req: Request, { params }: { params: Promise<{ action: string }> }): Promise<Response> {
-  if (!rateLimit(`admin:${clientIp(req)}`, 60)) return json({ error: "rate limited" }, { status: 429 });
+  if (!(await rateLimit(`admin:${clientIp(req)}`, 60))) return json({ error: "rate limited" }, { status: 429 });
   if (!authed(req)) return json({ error: "unauthorized" }, { status: 401 });
   const { action } = await params;
   const ctx = getServerContext();

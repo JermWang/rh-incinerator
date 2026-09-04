@@ -16,11 +16,14 @@ export interface ProtectedEntry {
 
 const lc = (a: string) => a.toLowerCase() as Address;
 
+/**
+ * Beacon implementations behind Robinhood Chain Stock Token proxies, resolved
+ * on-chain via the ERC-1967 beacon slot (verified 2026-09-03: testnet PLTR/NFLX,
+ * mainnet NVDA `0xd0601CE1…9EEC`).
+ */
 export const STOCK_TOKEN_IMPLEMENTATIONS: Record<SupportedChainId, readonly Address[]> = {
   [ROBINHOOD_CHAIN_TESTNET_ID]: [lc("0xBd14156E05c6AF28ad39aA53a2AB8eB9CDf657DA")],
-  // Mainnet implementation is resolved at runtime by implementation name "Stock";
-  // pin the address here once confirmed from the mainnet explorer.
-  [ROBINHOOD_CHAIN_MAINNET_ID]: [],
+  [ROBINHOOD_CHAIN_MAINNET_ID]: [lc("0xb35490d6f9163DE4F80d88dc75c3516eb64C5aE2")],
 };
 
 export const STOCK_TOKEN_IMPLEMENTATION_NAMES: readonly string[] = ["Stock"];
@@ -30,7 +33,12 @@ export const PROTECTED_TOKENS: Record<SupportedChainId, Record<Address, Protecte
     [lc("0x33e4191705c386532ba27cBF171Db86919200B94")]: { reason: "Wrapped native asset (WETH)" },
     [lc("0xbf4479C07Dc6fdc6dAa764A0ccA06969e894275F")]: { reason: "Stablecoin (USDC)" },
   },
-  [ROBINHOOD_CHAIN_MAINNET_ID]: {},
+  [ROBINHOOD_CHAIN_MAINNET_ID]: {
+    [lc("0x0Bd7D308f8E1639FAb988df18A8011f41EAcAD73")]: { reason: "Wrapped native asset (WETH)" },
+    // Global Dollar: the canonical 6-decimal issuer contract. Several 18-decimal
+    // impersonators reuse the USDG symbol on mainnet; they are flagged SUSPICIOUS.
+    [lc("0x5fc5360D0400a0Fd4f2af552ADD042D716F1d168")]: { reason: "Stablecoin (USDG)" },
+  },
 };
 
 /** Symbols that are protected when the contract is verified or widely held. */

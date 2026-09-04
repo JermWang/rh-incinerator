@@ -39,6 +39,7 @@ Without credentials the app runs fully against the public Robinhood Chain testne
 ```bash
 pnpm test                       # vitest: chain + sponsor packages (policy engine, decoders, sessions, signer fixture)
 pnpm test:contracts             # forge: unit, fuzz and invariant tests
+pnpm test:e2e                   # playwright: mock wallet + mocked RPC/API, desktop and mobile
 pnpm typecheck
 ```
 
@@ -57,6 +58,7 @@ Both backends run the same hostile-input policy pipeline first (chain, session, 
 ```bash
 ADMIN_TOKEN=... pnpm admin status|pause|resume|limits KEY=VALUE|denylist <addr> [reason] [ttlHours]|undeny <addr>|spend|failures|refills
 KEEPER_PRIVATE_KEY=... pnpm refill    # push reserve ETH into the paymaster deposit within contract caps
+CRON_SECRET=... pnpm reconcile        # settle sponsored budgets against UserOperation receipts
 ```
 
-See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md), [docs/SECURITY.md](docs/SECURITY.md) and [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md).
+See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md), [docs/SECURITY.md](docs/SECURITY.md), [docs/WALLETS.md](docs/WALLETS.md) and [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md).

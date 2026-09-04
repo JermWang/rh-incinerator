@@ -2,7 +2,7 @@
 pragma solidity 0.8.28;
 
 import {Test} from "forge-std/Test.sol";
-import {FeeRouter} from "../src/FeeRouter.sol";
+import {FeeRouter, IPonsFeeEscrow} from "../src/FeeRouter.sol";
 
 contract FeeRouterHandler is Test {
     FeeRouter public router;
@@ -47,7 +47,7 @@ contract FeeRouterInvariantTest is Test {
     address payable reserve = payable(makeAddr("reserve"));
 
     function setUp() public {
-        router = new FeeRouter(owner, treasury, reserve, 1_000);
+        router = new FeeRouter(owner, treasury, reserve, 1_000, IPonsFeeEscrow(address(0)));
         handler = new FeeRouterHandler(router, owner);
         targetContract(address(handler));
     }

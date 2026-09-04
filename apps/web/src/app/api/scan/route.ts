@@ -10,7 +10,7 @@ export const maxDuration = 60;
  * Read-only discovery of ERC-20 / NFT balances and live approvals.
  */
 export async function POST(req: Request): Promise<Response> {
-  if (!rateLimit(`scan:${clientIp(req)}`, 20)) return json({ error: "rate limited" }, { status: 429 });
+  if (!(await rateLimit(`scan:${clientIp(req)}`, 20))) return json({ error: "rate limited" }, { status: 429 });
   let body: { address?: string };
   try {
     body = (await req.json()) as { address?: string };
@@ -26,14 +26,16 @@ export async function POST(req: Request): Promise<Response> {
     {
       chainId: ctx.chainId,
       client: ctx.client,
-      blockscout: ctx.blockscout,
+      indexer: ctx.indexer,
       maxGasPerCall: policy.MAX_GAS_PER_CALL,
+      simulateChunk: ctx.env.simulateChunk,
       log: ctx.log,
     },
     getAddress(body.address),
   );
   ctx.log("scan", {
     address: result.address,
+    indexer: ctx.indexer.name,
     tokens: result.tokens.length,
     nfts: result.nfts.length,
     approvals: result.approvals.length,
