@@ -1,0 +1,37 @@
+name: Reconcile sponsor budgets
+
+# Vercel's Hobby plan only permits one cron run per day, which is too slow for
+# settling sponsored budgets against UserOperation receipts. This runs the same
+# endpoint every 10 minutes. Delete it if the project moves to a Vercel plan
+# with minute-level crons.
+on:
+  schedule:
+    - cron: "*/10 * * * *"
+  workflow_dispatch:
+
+concurrency:
+  group: reconcile
+  cancel-in-progress: false
+
+jobs:
+  reconcile:
+    runs-on: ubuntu-latest
+    # Skipped automatically on forks, where the secret is absent.
+    if: github.repository == 'JermWang/rh-incinerator'
+    steps:
+      - name: Call the reconcile endpoint
+        env:
+          URL: ${{ vars.INCINERATOR_URL }}
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
+        run: |
+          if [ -z "$CRON_SECRET" ] || [ -z "$URL" ]; then
+            echo "INCINERATOR_URL variable or CRON_SECRET secret not set; nothing to do."
+            exit 0
+          fi
+          code=$(curl -sS -o /tmp/out.json -w '%{http_code}' \
+            -H "authorization: Bearer $CRON_SECRET" \
+            --max-time 60 "$URL/api/cron/reconcile")
+          echo "HTTP $code"
+          cat /tmp/out.json
+          echo
+          [ "$code" = "200" ]

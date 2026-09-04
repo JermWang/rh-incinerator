@@ -18,3 +18,7 @@ playwright-report
 apps/web/.next
 apps/web/next-env.d.ts
 *.tsbuildinfo
+
+.vercel
+.env*
+.vercel
