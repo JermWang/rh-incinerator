@@ -1,0 +1,15 @@
+node_modules
+.next
+out
+dist
+coverage
+.env
+.env.local
+.env.*.local
+*.log
+.DS_Store
+.pnpm-store
+packages/contracts/out
+packages/contracts/cache
+packages/contracts/broadcast
+packages/contracts/lib

@@ -1,0 +1,26 @@
+{
+  "name": "incinerator",
+  "private": true,
+  "packageManager": "pnpm@11.9.0",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "dev": "pnpm --filter @incinerator/web dev",
+    "build": "pnpm -r --filter './packages/**' build && pnpm --filter @incinerator/web build",
+    "start": "pnpm --filter @incinerator/web start",
+    "typecheck": "pnpm -r typecheck",
+    "test": "pnpm -r --filter './packages/**' test",
+    "test:contracts": "pnpm --filter @incinerator/contracts test",
+    "lint": "pnpm -r lint",
+    "admin": "pnpm --filter @incinerator/sponsor admin"
+  },
+  "devDependencies": {
+    "typescript": "5.9.3"
+  },
+  "pnpm": {
+    "onlyBuiltDependencies": [
+      "esbuild"
+    ]
+  }
+}

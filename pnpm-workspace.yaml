@@ -1,0 +1,10 @@
+packages:
+  - apps/*
+  - packages/*
+allowBuilds:
+  '@reown/appkit': set this to true or false
+  esbuild: set this to true or false
+minimumReleaseAgeExclude:
+  - '@types/react-dom@19.2.7'
+  - lucide-react@1.40.0
+  - postcss@8.5.28
