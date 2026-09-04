@@ -16,3 +16,4 @@ packages/contracts/lib
 test-results
 playwright-report
 apps/web/.next
+apps/web/next-env.d.ts
