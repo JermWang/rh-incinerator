@@ -67,3 +67,27 @@ Custody never changes. The app never signs on the user's behalf and never reques
 - `FeeRouter`: receive → split by bps (sponsor share ≤ 50%) → immutable treasury + reserve. Pausable distribution; `receive()` never reverts. Optional immutable Pons fee escrow: `claimFees()` pulls the router's own credited balance (`IPonsV2FeeEscrow.claim()`), which is the only way Option A works because Pons V2 fees are claim-based.
 - `SponsorReserve`: `refill()` deposits into the paymaster's EntryPoint balance up to target, never above max hot balance, bounded per day and by interval. Only other exit: `returnToTreasury()`.
 - `IncineratorPaymaster`: unmodified eth-infinitism `VerifyingPaymaster` (v0.7). Hash preimage pinned by a cross-language fixture test.
+
+## Front end
+
+Three routes carry the product: `/` (hero and three steps), `/app` (the tool)
+and `/transparency` (live figures plus the security model). Older marketing
+routes redirect into those. `/activity` and `/admin` are reachable but kept out
+of the header.
+
+### Background (`apps/web/src/components/ascii-field.tsx`)
+A monospace character grid driven by a folded hexagonal lattice crossed with two
+slow plane waves, painted to one canvas. The lattice keeps the pattern
+geometric; the waves drift it. Open glyphs only, no solid blocks, so it reads as
+texture. Capped device pixel ratio, ~20fps, glyphs batched by colour, paused when
+the tab is hidden, and a single static frame under `prefers-reduced-motion`.
+
+It sits at `z-0` with page content at `z-10`; `body` is transparent so the field
+paints between the html canvas and the content. Content surfaces use dark-tinted
+glass (`--color-glass-*`) rather than white-tinted, so the field stays legible
+behind them without washing out text.
+
+### Brand
+Masters live in `brand-source/` and are not served. `pnpm brand:build` writes
+optimized WebP (transparent art), a JPEG social card and PNG icons into
+`apps/web/public/brand/`, taking the set from ~24MB to under 1MB.

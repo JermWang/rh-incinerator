@@ -3,17 +3,22 @@ import { GeistMono } from "geist/font/mono";
 import { GeistSans } from "geist/font/sans";
 import { headers } from "next/headers";
 import { cookieToInitialState } from "wagmi";
-import { Background } from "@/components/background";
+import { AsciiField } from "@/components/ascii-field";
 import { Footer } from "@/components/footer";
 import { Nav } from "@/components/nav";
 import { Providers } from "@/components/providers";
 import { getWagmiConfig } from "@/lib/wagmi";
 import "./globals.css";
 
+const description = "Burn junk tokens and revoke stale approvals on Robinhood Chain. Eligible cleanups are paid for by creator fees.";
+
 export const metadata: Metadata = {
-  title: { default: "Incinerator", template: "%s · Incinerator" },
-  description: "Clean your wallet. Keep your ETH. Remove unwanted assets and stale approvals on Robinhood Chain.",
+  title: { default: "Incinerator · Clean your wallet. Keep your ETH.", template: "%s · Incinerator" },
+  description,
   applicationName: "Incinerator",
+  icons: { icon: "/brand/icon.png", apple: "/brand/apple-icon.png" },
+  openGraph: { title: "Incinerator", description, images: ["/brand/social-card.jpg"], type: "website" },
+  twitter: { card: "summary_large_image", title: "Incinerator", description, images: ["/brand/social-card.jpg"] },
   robots: { index: true, follow: true },
 };
 
@@ -30,10 +35,12 @@ export default async function RootLayout({ children }: { children: React.ReactNo
     <html lang="en" className={`${GeistSans.variable} ${GeistMono.variable}`}>
       <body className="flex min-h-dvh flex-col">
         <Providers initialState={initialState}>
-          <Background />
-          <Nav />
-          <main className="flex-1">{children}</main>
-          <Footer />
+          <AsciiField />
+          <div className="relative z-10 flex min-h-dvh flex-col">
+            <Nav />
+            <main className="flex-1">{children}</main>
+            <Footer />
+          </div>
         </Providers>
       </body>
     </html>

@@ -9,9 +9,12 @@
   --color-fg-3: rgba(255, 255, 255, 0.34);
   --color-hairline: rgba(255, 255, 255, 0.08);
   --color-hairline-2: rgba(255, 255, 255, 0.14);
-  --color-glass-1: rgba(255, 255, 255, 0.035);
-  --color-glass-2: rgba(255, 255, 255, 0.055);
-  --color-glass-3: rgba(255, 255, 255, 0.08);
+  /* Dark-tinted glass. Content surfaces sit over the animated ASCII field, so
+     they need to mute it rather than tint it lighter. Chips stay light because
+     they always sit inside an already-dark panel. */
+  --color-glass-1: rgba(11, 13, 11, 0.7);
+  --color-glass-2: rgba(17, 19, 17, 0.82);
+  --color-glass-3: rgba(255, 255, 255, 0.07);
   --color-accent: #ccff00;
   --color-accent-dim: rgba(204, 255, 0, 0.14);
   --color-accent-glass: rgba(204, 255, 0, 0.07);
@@ -42,7 +45,9 @@
     text-rendering: optimizeLegibility;
   }
   body {
-    background: var(--color-bg-0);
+    /* Transparent so the fixed ASCII field paints between the html canvas and
+       the page content. An opaque body would occlude it. */
+    background: transparent;
     color: var(--color-fg);
     font-family: var(--font-sans);
     font-feature-settings: "ss01", "cv11";
@@ -118,8 +123,10 @@
 }
 
 @utility surface-1 {
-  background: var(--color-bg-1);
+  background: rgba(9, 10, 9, 0.86);
   border: 1px solid var(--color-hairline);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
 }
 
 @utility label-xs {

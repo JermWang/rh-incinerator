@@ -16,7 +16,8 @@
     "admin": "pnpm --filter @incinerator/sponsor admin",
     "reconcile": "pnpm --filter @incinerator/sponsor reconcile",
     "test:e2e": "pnpm --filter @incinerator/web test:e2e",
-    "test:all": "pnpm test && pnpm test:contracts && pnpm test:e2e"
+    "test:all": "pnpm test && pnpm test:contracts && pnpm test:e2e",
+    "brand:build": "node scripts/build-brand.mjs"
   },
   "devDependencies": {
     "typescript": "5.9.3"

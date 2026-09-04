@@ -5,12 +5,12 @@ import { AnimatePresence, motion, useReducedMotion } from "motion/react";
 import { useCallback, useMemo, useState } from "react";
 import { useConnection } from "wagmi";
 import type { CleanupOperation } from "@incinerator/chain";
-import { Button } from "@/components/ui/button";
+import { Mascot } from "@/components/brand";
 import { Pill } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { Panel } from "@/components/ui/panel";
 import { Stat } from "@/components/ui/stat";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { SponsorStatusCard } from "@/components/sponsor-status";
 import { ConnectButton } from "@/components/wallet/connect-button";
 import { NetworkGuard } from "@/components/wallet/network-guard";
 import { useAccountCapabilities } from "@/hooks/use-capabilities";
@@ -68,12 +68,14 @@ export function Dashboard() {
 
   if (!isConnected) {
     return (
-      <div className="mx-auto max-w-[1240px] px-4 py-16 md:px-6">
-        <Panel level={2} className="mx-auto max-w-[520px] p-7 text-center">
-          <div className="label-xs">Wallet cleanup</div>
-          <h1 className="mt-3 text-[26px] font-medium tracking-[-0.02em]">Connect to scan Robinhood Chain</h1>
-          <p className="mt-2 text-[13.5px] leading-relaxed text-fg-2">Non-custodial. Incinerator reads your balances and approvals, simulates every operation, and only ever asks you to sign cleanup calls.</p>
-          <div className="mt-6 flex justify-center">
+      <div className="mx-auto max-w-[1180px] px-4 py-14 md:px-6">
+        <Panel level={2} className="mx-auto flex max-w-[520px] flex-col items-center p-8 text-center">
+          <Mascot art="torch" size={168} priority alt="" />
+          <h1 className="mt-4 text-[24px] font-medium tracking-[-0.02em]">Connect to scan your wallet</h1>
+          <p className="mt-2 text-[13.5px] leading-relaxed text-fg-2">
+            Incinerator reads your balances and approvals, simulates every operation, and only ever asks you to sign cleanup calls.
+          </p>
+          <div className="mt-6">
             <ConnectButton size="lg" />
           </div>
         </Panel>
@@ -82,15 +84,25 @@ export function Dashboard() {
   }
 
   const assetsFound = (scan.data?.tokens.length ?? 0) + (scan.data?.nfts.length ?? 0);
+  const p = scan.data?.partial;
+  const partialScan = Boolean(p && !(p.tokens && p.nfts && p.approvals));
   const yourGas = quote ? (quote.sponsorship.eligible ? "0 ETH" : "Standard") : sponsorPossible ? "—" : "Standard";
-  const yourGasHint = quote ? (quote.sponsorship.eligible ? "Sponsorship confirmed" : "Paid by you") : sponsorPossible ? "Confirmed at review" : caps.loading ? "Detecting wallet…" : "Paid by you";
+  const yourGasHint = quote
+    ? quote.sponsorship.eligible
+      ? "Sponsored"
+      : "Paid by you"
+    : sponsorPossible
+      ? "Confirmed at review"
+      : caps.loading
+        ? "Checking wallet"
+        : "Paid by you";
 
   return (
-    <div className="mx-auto max-w-[1240px] px-4 pb-32 pt-8 md:px-6 md:pb-16 md:pt-10">
+    <div className="mx-auto max-w-[1180px] px-4 pb-32 pt-8 md:px-6 md:pb-16 md:pt-10">
       <NetworkGuard>
         <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
           <div>
-            <h1 className="text-[28px] font-medium tracking-[-0.02em] md:text-[32px]">Wallet cleanup</h1>
+            <h1 className="text-[26px] font-medium tracking-[-0.02em] md:text-[30px]">Wallet cleanup</h1>
             <p className="mt-1.5 text-[13.5px] text-fg-2">Review assets before permanently removing them.</p>
           </div>
           <div className="flex items-center gap-2">
@@ -101,12 +113,10 @@ export function Dashboard() {
           </div>
         </div>
 
-        <div className="mt-6 grid grid-cols-2 gap-3 md:grid-cols-5">
-          <Stat testId="stat-assets-found" label="Assets found" value={assetsFound} loading={scan.isLoading} hint={scan.data?.partial && !(scan.data.partial.tokens && scan.data.partial.nfts) ? "Partial scan" : undefined} />
+        <div className="mt-6 grid grid-cols-3 gap-3">
+          <Stat testId="stat-assets-found" label="Assets found" value={assetsFound} loading={scan.isLoading} hint={partialScan ? "Scan incomplete" : undefined} />
           <Stat testId="stat-selected" label="Selected" value={sel.counts.total} tone={sel.counts.total > 0 ? "accent" : "neutral"} />
-          <Stat testId="stat-approvals" label="Approvals" value={scan.data?.approvals.length ?? 0} loading={scan.isLoading} hint={scan.data && !scan.data.partial.approvals ? "Scan incomplete" : undefined} />
           <Stat testId="stat-your-gas" label="Your gas" value={yourGas} tone={quote?.sponsorship.eligible ? "accent" : "neutral"} hint={yourGasHint} />
-          <SponsorStatusCard compact className="col-span-2 md:col-span-1" />
         </div>
 
         {scan.error && (
@@ -119,11 +129,11 @@ export function Dashboard() {
         )}
         {scan.data?.errors.length ? (
           <Panel level={1} radius="lg" className="mt-4 p-3.5 text-[12.5px] text-fg-3">
-            Some data could not be loaded ({scan.data.errors.join("; ")}). Results shown are verified on-chain; rescan to retry.
+            Some data could not be loaded ({scan.data.errors.join("; ")}). Everything shown is verified on-chain. Rescan to retry.
           </Panel>
         ) : null}
 
-        <Tabs defaultValue="tokens" className="mt-8">
+        <Tabs defaultValue="tokens" className="mt-7">
           <div className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
             <TabsList>
               <TabsTrigger value="tokens" count={scan.data?.tokens.length}>
@@ -143,7 +153,7 @@ export function Dashboard() {
                 onChange={(e) => setFilter(e.target.value)}
                 placeholder="Filter"
                 aria-label="Filter assets"
-                className="h-9 w-full rounded-[9px] border border-hairline bg-glass-1 pl-9 pr-3 text-[13px] text-fg placeholder:text-fg-3 focus:border-hairline-2 md:w-[220px]"
+                className="h-9 w-full rounded-[9px] border border-hairline bg-glass-1 pl-9 pr-3 text-[13px] text-fg placeholder:text-fg-3 focus:border-hairline-2 md:w-[200px]"
               />
             </label>
           </div>
@@ -158,7 +168,7 @@ export function Dashboard() {
             {scan.isLoading ? (
               <RowSkeleton />
             ) : tokens.length === 0 ? (
-              <Empty text={filter ? "No tokens match the filter." : "No ERC-20 balances found."} />
+              <Empty text={filter ? "No tokens match that filter." : "No ERC-20 balances found. Nothing to clean up here."} />
             ) : tokens.length > 60 ? (
               <VirtualList
                 items={tokens}
@@ -199,11 +209,11 @@ export function Dashboard() {
           </TabsContent>
 
           <TabsContent value="approvals" className="mt-4 outline-none">
-            <SelectionBar label="approvals" selectable={(scan.data?.approvals ?? []).map(approvalKey)} selected={sel.selected} setMany={sel.setMany} cta={sel.counts.approvals > 0 ? { label: `Revoke selected (${sel.counts.approvals})`, onClick: () => setReviewOpen(true) } : undefined} />
+            <SelectionBar label="approvals" selectable={(scan.data?.approvals ?? []).map(approvalKey)} selected={sel.selected} setMany={sel.setMany} />
             {scan.isLoading ? (
               <RowSkeleton />
             ) : !scan.data?.approvals.length ? (
-              <Empty text="No active approvals found." />
+              <Empty text="No active approvals found. Nothing can spend on your behalf." />
             ) : (
               <div className="flex flex-col gap-2">
                 {scan.data.approvals.map((a) => (
@@ -214,7 +224,6 @@ export function Dashboard() {
           </TabsContent>
         </Tabs>
 
-        {/* Desktop action bar */}
         <AnimatePresence>
           {sel.counts.total > 0 && (
             <motion.div
@@ -224,11 +233,11 @@ export function Dashboard() {
               exit={reduce ? { opacity: 0 } : { opacity: 0, y: 12 }}
               transition={{ duration: 0.18 }}
             >
-              <div className="mx-auto max-w-[1240px] px-0 md:px-6">
-                <div className="flex items-center justify-between gap-4 border-t border-hairline-2 bg-bg-1/95 px-4 py-3 backdrop-blur-xl md:mx-auto md:max-w-[560px] md:rounded-[16px] md:border md:px-5 md:shadow-[0_24px_64px_-24px_rgba(0,0,0,0.9)]">
+              <div className="mx-auto max-w-[1180px] px-0 md:px-6">
+                <div className="flex items-center justify-between gap-4 border-t border-hairline-2 bg-bg-1/95 px-4 py-3 backdrop-blur-xl md:mx-auto md:max-w-[520px] md:rounded-[16px] md:border md:px-5 md:shadow-[0_24px_64px_-24px_rgba(0,0,0,0.9)]">
                   <div>
                     <div className="tnum text-[13px] font-medium uppercase tracking-[0.12em] text-fg">{sel.counts.total} selected</div>
-                    <div className="text-[11.5px] text-fg-3">Gas: {sponsorPossible ? <span className="text-accent">Sponsored if eligible</span> : "Paid by you"}</div>
+                    <div className="text-[11.5px] text-fg-3">{sponsorPossible ? <span className="text-accent">Gas sponsored if eligible</span> : "Gas paid by you"}</div>
                   </div>
                   <div className="flex items-center gap-2">
                     <Button variant="ghost" size="sm" onClick={sel.clear}>
@@ -267,30 +276,22 @@ export function Dashboard() {
 }
 
 function CapabilityPill({ loading, path, sponsorActive }: { loading: boolean; path: "sponsored-capable" | "atomic" | "legacy"; sponsorActive: boolean }) {
-  if (loading) return <Pill tone="neutral">Detecting wallet</Pill>;
+  if (loading) return <Pill tone="neutral">Checking wallet</Pill>;
   if (path === "sponsored-capable" && sponsorActive) return <Pill tone="accent">Free burn · gas sponsored</Pill>;
   if (path === "sponsored-capable") return <Pill tone="neutral">Smart account · sponsor unavailable</Pill>;
   if (path === "atomic") return <Pill tone="neutral">Standard burn · batched</Pill>;
   return <Pill tone="neutral">Standard burn</Pill>;
 }
 
-function SelectionBar({ label, selectable, selected, setMany, cta }: { label: string; selectable: string[]; selected: Set<string>; setMany: (k: string[], on: boolean) => void; cta?: { label: string; onClick: () => void } | undefined }) {
+function SelectionBar({ label, selectable, selected, setMany }: { label: string; selectable: string[]; selected: Set<string>; setMany: (k: string[], on: boolean) => void }) {
   const allOn = selectable.length > 0 && selectable.every((k) => selected.has(k));
+  if (selectable.length === 0) return null;
   return (
     <div className="mb-3 flex items-center justify-between text-[12px] text-fg-3">
       <span>{plural(selectable.length, `selectable ${label.replace(/s$/, "")}`, `selectable ${label}`)}</span>
-      <div className="flex items-center gap-3">
-        {selectable.length > 0 && (
-          <button className="uppercase tracking-[0.1em] hover:text-fg-2" onClick={() => setMany(selectable, !allOn)}>
-            {allOn ? "Deselect all" : "Select all eligible"}
-          </button>
-        )}
-        {cta && (
-          <Button size="sm" variant="secondary" onClick={cta.onClick}>
-            {cta.label}
-          </Button>
-        )}
-      </div>
+      <button className="uppercase tracking-[0.1em] hover:text-fg-2" onClick={() => setMany(selectable, !allOn)}>
+        {allOn ? "Deselect all" : "Select all eligible"}
+      </button>
     </div>
   );
 }
@@ -315,5 +316,10 @@ function RowSkeleton() {
 }
 
 function Empty({ text }: { text: string }) {
-  return <div className="rounded-[14px] border border-dashed border-hairline px-4 py-10 text-center text-[13px] text-fg-3">{text}</div>;
+  return (
+    <div className="flex flex-col items-center gap-3 rounded-[14px] border border-dashed border-hairline px-4 py-10 text-center">
+      <Mascot art="head" size={78} className="opacity-70" />
+      <p className="max-w-[320px] text-[13px] text-fg-3">{text}</p>
+    </div>
+  );
 }

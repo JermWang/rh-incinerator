@@ -16,7 +16,6 @@ test.describe("wallet cleanup flow", () => {
     await expect(page.getByText(/standard burn/i).first()).toBeVisible();
     // Summary cards reflect real scan counts (4 tokens + 2 NFTs).
     await expect(page.getByTestId("stat-assets-found")).toHaveText("6");
-    await expect(page.getByTestId("stat-approvals")).toHaveText("2");
     await expect(page.getByTestId("stat-selected")).toHaveText("0");
   });
 

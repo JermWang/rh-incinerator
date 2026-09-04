@@ -3,6 +3,7 @@
 import { AlertTriangle, ExternalLink } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { describeOperation, formatEth, isDestructive, type CleanupOperation } from "@incinerator/chain";
+import { Mascot } from "@/components/brand";
 import { Button } from "@/components/ui/button";
 import { Pill } from "@/components/ui/badge";
 import { Sheet } from "@/components/ui/sheet";
@@ -219,9 +220,10 @@ function CompleteView({ state }: { state: CleanupState }) {
   const r = state.result!;
   return (
     <div className="flex flex-col gap-5">
-      <div className="rounded-[16px] border border-[rgba(204,255,0,0.25)] bg-accent-glass p-5">
-        <div className="label-xs text-accent">Cleanup complete</div>
-        <dl className="mt-4 grid grid-cols-3 gap-4">
+      <div className="flex flex-col items-center rounded-[16px] border border-[rgba(204,255,0,0.25)] bg-accent-glass p-5 text-center">
+        <Mascot art="fire" size={150} alt="" />
+        <div className="label-xs mt-1 text-accent">Cleanup complete</div>
+        <dl className="mt-4 grid w-full grid-cols-3 gap-4">
           <Metric label="Assets removed" value={r.removed} />
           <Metric label="Approvals revoked" value={r.revoked} />
           <Metric label="Gas paid" value={r.sponsored ? "0 ETH" : "By you"} />
@@ -234,7 +236,7 @@ function CompleteView({ state }: { state: CleanupState }) {
 
 function Metric({ label, value }: { label: string; value: React.ReactNode }) {
   return (
-    <div>
+    <div className="text-left">
       <dt className="label-xs">{label}</dt>
       <dd className="tnum mt-1 text-[22px] font-medium tracking-[-0.02em] text-fg">{value}</dd>
     </div>

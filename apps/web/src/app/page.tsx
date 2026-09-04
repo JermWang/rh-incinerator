@@ -1,62 +1,76 @@
+import Image from "next/image";
 import Link from "next/link";
-import { ArrowRight } from "lucide-react";
-import { PreviewPanel } from "@/components/landing/preview-panel";
-import { NetworkBadge } from "@/components/network-badge";
-import { Panel } from "@/components/ui/panel";
+import { ART, Mascot } from "@/components/brand";
 import { ConnectButton } from "@/components/wallet/connect-button";
 
+/**
+ * One screen, one decision: connect and clean. Everything that used to live on
+ * separate marketing pages is either three lines here or on /transparency.
+ */
 export default function LandingPage() {
   return (
-    <div className="mx-auto max-w-[1240px] px-4 md:px-6">
-      <section className="grid items-center gap-12 pb-20 pt-14 md:grid-cols-[1.05fr_1fr] md:pb-28 md:pt-24">
-        <div>
-          <NetworkBadge />
-          <h1 className="mt-6 text-[40px] font-medium leading-[1.02] tracking-[-0.035em] text-fg md:text-[64px]">
+    <div className="mx-auto max-w-[1180px] px-4 md:px-6">
+      <section className="grid items-center gap-8 pb-14 pt-10 md:grid-cols-[1.02fr_0.98fr] md:gap-6 md:pb-20 md:pt-16">
+        <div className="order-2 md:order-1">
+          <Image
+            src={ART.wordmark}
+            alt="RH Incinerator"
+            width={1100}
+            height={367}
+            priority
+            className="w-[min(100%,420px)] md:w-[min(100%,470px)]"
+          />
+          <h1 className="mt-5 text-[30px] font-medium leading-[1.08] tracking-[-0.03em] text-fg md:text-[40px]">
             Clean your wallet.
             <br />
             Keep your ETH.
           </h1>
-          <p className="mt-6 max-w-[460px] text-[15px] leading-relaxed text-fg-2 md:text-[16px]">
-            Remove unwanted assets and stale approvals on Robinhood Chain. Eligible cleanup transactions are sponsored by creator fees.
+          <p className="mt-4 max-w-[440px] text-[15px] leading-relaxed text-fg-2">
+            Burn junk tokens and revoke stale approvals on Robinhood Chain. Eligible cleanups are paid for by creator fees, so you pay nothing.
           </p>
-          <div className="mt-8 flex flex-wrap items-center gap-4">
+          <div className="mt-7">
             <ConnectButton size="lg" goToApp />
-            <Link href="/how-it-works" className="inline-flex items-center gap-1.5 text-[12px] font-medium uppercase tracking-[0.14em] text-fg-2 hover:text-fg">
-              How it works <ArrowRight className="size-3.5" />
-            </Link>
           </div>
+          <p className="mt-3 text-[12px] text-fg-3">Non-custodial. You sign every action. No seed phrase, ever.</p>
         </div>
-        <div className="flex justify-center md:justify-end">
-          <PreviewPanel />
+
+        <div className="order-1 flex justify-center md:order-2 md:justify-end">
+          <Mascot art="fire" size={520} priority alt="Incinerator mascot burning unwanted tokens" className="w-[min(88vw,420px)] drop-shadow-[0_24px_60px_rgba(204,255,0,0.10)] md:w-[min(46vw,520px)]" />
         </div>
       </section>
 
-      <section className="grid gap-3 md:grid-cols-3">
-        <Feature title="Non-custodial" body="Assets never leave your control. You sign each cleanup; Incinerator never holds keys, seed phrases or funds." />
-        <Feature title="Simulated first" body="Every burn, transfer and revocation runs through simulation on Robinhood Chain before it is offered. Non-standard tokens are refused." />
-        <Feature title="Creator-funded gas" body="A limited sponsor budget, funded one-way from Pons creator fees, pays for eligible cleanups when your wallet supports sponsorship." />
-      </section>
-
-      <section className="mt-20 md:mt-28">
-        <div className="label-xs">The loop</div>
-        <ol className="mt-4 grid gap-px overflow-hidden rounded-[16px] border border-hairline bg-hairline md:grid-cols-6">
-          {["Connect wallet", "Scan Robinhood Chain", "Select unwanted assets", "Review every operation", "Sign once", "Cleanup complete"].map((s, i) => (
-            <li key={s} className="bg-bg-1 px-4 py-4">
-              <div className="tnum text-[11px] text-fg-3">0{i + 1}</div>
-              <div className="mt-1.5 text-[13.5px] font-medium text-fg">{s}</div>
+      <section aria-labelledby="steps" className="pb-6">
+        <h2 id="steps" className="sr-only">
+          How it works
+        </h2>
+        <ol className="grid gap-px overflow-hidden rounded-[18px] border border-hairline bg-hairline sm:grid-cols-3">
+          {[
+            ["Connect", "Scan your wallet for junk tokens, NFTs and open approvals."],
+            ["Select", "Nothing is pre-picked. Real assets stay locked until you unlock them."],
+            ["Incinerate", "Every action is simulated first, then you sign once."],
+          ].map(([title, body], i) => (
+            <li key={title} className="bg-bg-1/92 px-5 py-5 backdrop-blur-md">
+              <div className="tnum text-[11px] text-accent">0{i + 1}</div>
+              <div className="mt-2 text-[15px] font-medium text-fg">{title}</div>
+              <p className="mt-1.5 text-[13px] leading-relaxed text-fg-2">{body}</p>
             </li>
           ))}
         </ol>
       </section>
-    </div>
-  );
-}
 
-function Feature({ title, body }: { title: string; body: string }) {
-  return (
-    <Panel level={1} radius="lg" className="p-5">
-      <div className="text-[12px] font-medium uppercase tracking-[0.14em] text-fg">{title}</div>
-      <p className="mt-2 text-[13px] leading-relaxed text-fg-2">{body}</p>
-    </Panel>
+      <section className="mt-6 overflow-hidden rounded-[18px] border border-hairline bg-glass-1">
+        <div className="flex flex-col items-center gap-6 px-6 py-7 sm:flex-row sm:px-8">
+          <Image src={ART.freeBurns} alt="Free burns" width={860} height={573} className="w-[220px] shrink-0 sm:w-[240px]" />
+          <div>
+            <p className="text-[14.5px] leading-relaxed text-fg-2">
+              Solana refunds rent when you close an account. Ethereum does not. Instead, a bounded share of Pons creator fees funds a gas budget that pays for your cleanup.
+            </p>
+            <Link href="/transparency" className="mt-3 inline-block text-[12px] font-medium uppercase tracking-[0.14em] text-accent hover:underline">
+              See the live sponsor pool
+            </Link>
+          </div>
+        </div>
+      </section>
+    </div>
   );
 }

@@ -18,11 +18,27 @@ Incinerator is an independent application built for Robinhood Chain and is not a
 
 ```
 apps/web                Next.js 16 app: UI, route handlers (/api/*), wallet layer (wagmi 3 / viem 2)
+brand-source            Full-resolution mascot and logo masters (not served)
+scripts/build-brand.mjs  Produces the optimized brand assets the app ships
 packages/chain          Chain constants, ABIs, Blockscout indexer client, scanner, classification, simulation engine
 packages/sponsor        Sponsor policy engine: calldata decoding, allowlist, limits, SIWE sessions, ERC-7677 paymaster, stores, admin
 packages/contracts      Foundry: FeeRouter, SponsorReserve, IncineratorPaymaster (+ unit, fuzz, invariant tests)
 docs/                   Architecture, security model, deployment runbook
 ```
+
+## Surface
+
+Three pages, on purpose.
+
+| Route | What it is |
+| --- | --- |
+| `/` | Wordmark, mascot, one call to action, three steps. |
+| `/app` | The cleanup tool: tokens, NFTs, approvals, review, sign. |
+| `/transparency` | Live sponsor figures plus the security model. |
+
+`/activity` (per-wallet history) and `/admin` (operator surface) exist but are
+not in the header. The old `/how-it-works`, `/security` and `/sponsor` pages
+redirect here.
 
 ## Quick start
 
@@ -30,6 +46,7 @@ docs/                   Architecture, security model, deployment runbook
 pnpm install
 cp .env.example .env            # optional: leave empty for read-only testnet mode
 pnpm dev                        # http://localhost:3000
+pnpm brand:build                # regenerate brand assets after editing brand-source/
 ```
 
 Without credentials the app runs fully against the public Robinhood Chain testnet RPC and explorer: scanning, simulation and user-paid cleanups work; sponsorship reports `NOT_CONFIGURED`.

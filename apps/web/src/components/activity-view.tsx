@@ -5,6 +5,7 @@ import { ExternalLink } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { useConnection } from "wagmi";
 import { shortAddress } from "@incinerator/chain";
+import { Mascot } from "@/components/brand";
 import { Pill } from "@/components/ui/badge";
 import { Panel } from "@/components/ui/panel";
 import { ConnectButton } from "@/components/wallet/connect-button";
@@ -42,13 +43,21 @@ export function ActivityView() {
 
   if (!isConnected) {
     return (
-      <Panel level={1} radius="lg" className="flex flex-col items-start gap-4 p-6">
+      <Panel level={1} radius="lg" className="flex flex-col items-center gap-4 p-8 text-center">
+        <Mascot art="head" size={92} alt="" />
         <p className="text-[13.5px] text-fg-2">Connect a wallet to view its cleanup history.</p>
         <ConnectButton />
       </Panel>
     );
   }
-  if (rows.length === 0) return <div className="rounded-[14px] border border-dashed border-hairline px-4 py-10 text-center text-[13px] text-fg-3">No cleanups yet for this wallet.</div>;
+  if (rows.length === 0) {
+    return (
+      <div className="flex flex-col items-center gap-3 rounded-[14px] border border-dashed border-hairline px-4 py-10 text-center">
+        <Mascot art="head" size={78} className="opacity-70" />
+        <p className="text-[13px] text-fg-3">No cleanups yet for this wallet.</p>
+      </div>
+    );
+  }
 
   return (
     <ul className="divide-y divide-hairline rounded-[16px] border border-hairline bg-glass-1">

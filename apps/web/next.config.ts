@@ -13,6 +13,14 @@ const nextConfig: NextConfig = {
       { protocol: "https", hostname: "ipfs.io" },
     ],
   },
+  async redirects() {
+    // These pages were merged into the landing page and /transparency.
+    return [
+      { source: "/how-it-works", destination: "/", permanent: true },
+      { source: "/security", destination: "/transparency", permanent: true },
+      { source: "/sponsor", destination: "/transparency", permanent: true },
+    ];
+  },
   async headers() {
     return [
       {
