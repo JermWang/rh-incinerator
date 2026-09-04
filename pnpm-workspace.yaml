@@ -1,10 +1,9 @@
 packages:
   - apps/*
   - packages/*
+
+# pnpm 11 build-script policy. Only esbuild (used by vitest) may run scripts;
+# @reown/appkit's postinstall is not needed for anything we use.
 allowBuilds:
-  '@reown/appkit': set this to true or false
-  esbuild: set this to true or false
-minimumReleaseAgeExclude:
-  - '@types/react-dom@19.2.7'
-  - lucide-react@1.40.0
-  - postcss@8.5.28
+  esbuild: true
+  '@reown/appkit': false
