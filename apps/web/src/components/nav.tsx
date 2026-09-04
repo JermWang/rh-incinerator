@@ -15,7 +15,7 @@ export function Nav() {
   const path = usePathname();
   const onApp = path === "/app";
   return (
-    <header className="sticky top-0 z-30 border-b border-hairline bg-bg-0/75 backdrop-blur-xl">
+    <header className="sticky top-0 z-30 border-b border-hairline bg-bg-0/85 backdrop-blur-xl">
       <div className="mx-auto flex h-14 max-w-[1180px] items-center gap-3 px-4 md:h-16 md:gap-4 md:px-6">
         <Logo />
         <div className="hidden lg:block">

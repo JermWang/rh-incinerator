@@ -124,11 +124,11 @@ export function AsciiField() {
       // Dim white for structure; the densest cells pick up the accent so the
       // lime green reads as current moving through the lattice.
       const styles = [
-        "rgba(255,255,255,0.05)",
-        "rgba(255,255,255,0.07)",
-        "rgba(255,255,255,0.10)",
-        "rgba(204,255,0,0.11)",
-        "rgba(204,255,0,0.20)",
+        "rgba(255,255,255,0.14)",
+        "rgba(255,255,255,0.20)",
+        "rgba(255,255,255,0.28)",
+        "rgba(204,255,0,0.34)",
+        "rgba(204,255,0,0.60)",
       ];
       for (let b = 0; b < buckets.length; b++) {
         const items = buckets[b];
@@ -195,11 +195,10 @@ export function AsciiField() {
         className="absolute inset-0"
         style={{
           background:
-            "radial-gradient(900px 520px at 12% -8%, rgba(204,255,0,0.05), transparent 62%), radial-gradient(760px 460px at 92% 108%, rgba(204,255,0,0.035), transparent 62%)",
+            "radial-gradient(900px 520px at 12% -8%, rgba(204,255,0,0.08), transparent 62%), radial-gradient(760px 460px at 92% 108%, rgba(204,255,0,0.06), transparent 62%)",
         }}
       />
       <canvas ref={ref} className="absolute inset-0" />
-      <div className="absolute inset-0" style={{ background: "linear-gradient(180deg, rgba(5,5,5,0.6) 0%, rgba(5,5,5,0) 10%)" }} />
     </div>
   );
 }
