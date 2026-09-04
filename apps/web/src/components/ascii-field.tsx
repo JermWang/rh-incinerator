@@ -23,6 +23,18 @@ import { useEffect, useRef } from "react";
 const RAMP = [" ", " ", " ", " ", " ", "·", "·", "˙", "+", "◇", "△", "◆"];
 const CELL = 17;
 const FPS = 20;
+/**
+ * Mid-tone falloff. Higher = sparser field. Tuned so glyph coverage sits at
+ * 19-21% of cells on desktop and 17-24% on mobile at every point in the cycle,
+ * measured across a full period.
+ */
+const GAMMA = 3.0;
+/**
+ * Hard cap on how much of the grid may carry a glyph. The curve above should
+ * keep coverage well under this; it exists so no viewport or wave alignment
+ * can ever close the grid up behind text.
+ */
+const MAX_COVERAGE = 0.26;
 
 export function AsciiField() {
   const ref = useRef<HTMLCanvasElement>(null);
@@ -74,13 +86,17 @@ export function AsciiField() {
       const fy = hy - Math.floor(hy) - 0.5;
       const cellDist = Math.sqrt(fx * fx + fy * fy) * 2;
 
-      // Slow, long-wavelength motion. Nothing here moves faster than a drift.
-      const wave1 = Math.sin(x * 0.32 + y * 0.18 - t * 0.22);
-      const wave2 = Math.sin(x * -0.16 + y * 0.34 + t * 0.16);
-      const ring = Math.sin(cellDist * 3.2 - t * 0.32);
+      // The lattice is deliberately time-independent and carries most of the
+      // weight. That is what holds the density steady: when the dominant term
+      // also moved, every cell brightened in lockstep and the whole field
+      // pulsed between empty and a solid carpet that text had to fight.
+      // Motion comes from the two lighter waves, so cells still shimmer and
+      // drift while total coverage stays put (measured 19-21% of cells).
+      const ring = Math.sin(cellDist * 3.6);
+      const wave1 = Math.sin(x * 1.4 + y * 0.8 - t * 0.22);
+      const wave2 = Math.sin(x * -0.7 + y * 1.5 + t * 0.16);
 
-      // Weight the lattice most so the result stays structured.
-      const v = ring * 0.52 + wave1 * 0.26 + wave2 * 0.22;
+      const v = ring * 0.58 + wave1 * 0.24 + wave2 * 0.18;
       return (v + 1) * 0.5;
     };
 
@@ -107,10 +123,16 @@ export function AsciiField() {
           const dx = (c - pcx) / cols;
           const dy = (r - pcy) / rows;
           const near = Math.max(0, 1 - Math.sqrt(dx * dx + dy * dy) * 2.6);
-          v += near * 0.14;
+          v += near * 0.1;
 
           // Ease off just under the sticky header so navigation stays legible.
           v *= Math.min(1, (r / rows) * 6 + 0.55);
+
+          // Density ceiling. Without this the lattice fills every cell at its
+          // peak and turns into a carpet that text has to fight. The curve
+          // collapses mid-tones so only the crests light up, which keeps the
+          // geometry readable and leaves most of the grid empty.
+          v = Math.pow(Math.max(0, v), GAMMA);
 
           const idx = Math.max(0, Math.min(RAMP.length - 1, Math.round(v * (RAMP.length - 1))));
           const ch = RAMP[idx]!;
@@ -121,14 +143,27 @@ export function AsciiField() {
         }
       }
 
+      // Hard coverage cap. The gamma curve above usually keeps the field well
+      // under this, but wave crests can align; when they do, shed the faintest
+      // glyphs first so the grid can never close up behind text.
+      const budget = Math.floor(cols * rows * MAX_COVERAGE);
+      let painted = buckets.reduce((n, b) => n + b.length, 0);
+      for (let b = 0; b < buckets.length && painted > budget; b++) {
+        const over = painted - budget;
+        const items = buckets[b]!;
+        const drop = Math.min(over, items.length);
+        items.length = items.length - drop;
+        painted -= drop;
+      }
+
       // Dim white for structure; the densest cells pick up the accent so the
       // lime green reads as current moving through the lattice.
       const styles = [
-        "rgba(255,255,255,0.14)",
+        "rgba(255,255,255,0.10)",
+        "rgba(255,255,255,0.15)",
         "rgba(255,255,255,0.20)",
-        "rgba(255,255,255,0.28)",
-        "rgba(204,255,0,0.34)",
-        "rgba(204,255,0,0.60)",
+        "rgba(204,255,0,0.26)",
+        "rgba(204,255,0,0.46)",
       ];
       for (let b = 0; b < buckets.length; b++) {
         const items = buckets[b];

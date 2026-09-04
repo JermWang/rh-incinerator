@@ -144,6 +144,27 @@
   font-weight: 500;
 }
 
+/**
+ * Local legibility scrim for text sitting directly on the ASCII field.
+ * A soft radial with no hard edge, so it reads as depth rather than a box.
+ * Prefer this over darkening the field globally.
+ */
+@utility quiet {
+  position: relative;
+  isolation: auto;
+  & > * {
+    position: relative;
+  }
+  &::before {
+    content: "";
+    position: absolute;
+    inset: -10% -14%;
+    background: radial-gradient(58% 52% at 42% 50%, rgba(5, 5, 5, 0.88) 0%, rgba(5, 5, 5, 0.66) 46%, rgba(5, 5, 5, 0) 76%);
+    pointer-events: none;
+    z-index: 0;
+  }
+}
+
 @utility hairline-b {
   border-bottom: 1px solid var(--color-hairline);
 }

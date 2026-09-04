@@ -11,7 +11,7 @@ export default function LandingPage() {
   return (
     <div className="mx-auto max-w-[1180px] px-4 md:px-6">
       <section className="grid items-center gap-8 pb-14 pt-10 md:grid-cols-[1.02fr_0.98fr] md:gap-6 md:pb-20 md:pt-16">
-        <div className="order-2 md:order-1">
+        <div className="quiet order-2 md:order-1">
           <Image
             src={ART.wordmark}
             alt="RH Incinerator"
